@@ -24,21 +24,17 @@
 #ifndef TVM_SYM_CONST_FOLD_H_
 #define TVM_SYM_CONST_FOLD_H_
 
-#include "../ir/prim/const_fold.h"
+#include <tvm/ir/prim/const_fold.h>
+
 #include "int_operator.h"
 
 namespace tvm {
 namespace sym {
 
-using prim::detail::GetFoldResultDoubleRepr;
-using prim::detail::is_neg_inf;
-using prim::detail::is_pos_inf;
-using prim::detail::IsIndexType;
-using prim::detail::IsIndexTypedExpr;
-using prim::detail::neg_inf;
-using prim::detail::pos_inf;
-using prim::detail::SymbolicLimits;
-using prim::detail::TryConstFold;
+using prim::TryConstFold;
+using prim::details::GetFoldResultDoubleRepr;
+using prim::details::IsIndexType;
+using prim::details::IsIndexTypedExpr;
 
 }  // namespace sym
 }  // namespace tvm

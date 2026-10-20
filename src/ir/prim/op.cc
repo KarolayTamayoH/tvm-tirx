@@ -17,17 +17,17 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/const_fold.h>
 #include <tvm/ir/prim/op.h>
 
 #include <cmath>
 
-#include "const_fold.h"
 #include "op_utils.h"
 
 namespace tvm {
 using prim::IsConstInt;
 using prim::MakeConst;
-using namespace prim::detail;
+using namespace prim::details;
 namespace {
 TVM_FFI_INLINE const PrimTypeNode* GetPrimTypeNode(const PrimExpr& expr) {
   // Avoid PrimExpr::ty() ObjectRef materialization on binary operator hot paths.
@@ -71,7 +71,7 @@ bool IsVScaleCall(const PrimExpr& expr) {
 }
 
 }  // namespace
-namespace prim::detail {
+namespace prim::details {
 void BroadcastToMatchLanes(PrimExpr& op_a, PrimExpr& op_b) {  // NOLINT(*)
   PrimType ty_a = op_a.ty();
   PrimType ty_b = op_b.ty();
@@ -183,7 +183,7 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Location loc) {  // NOLINT
   }
 }
 
-}  // namespace prim::detail
+}  // namespace prim::details
 namespace prim {
 // maximum and min limits
 PrimExpr max_value(PrimType value_ty, Location loc) {
@@ -388,7 +388,7 @@ PrimExpr operator+(PrimExpr a, PrimExpr b) { return add(a, b); }
 
 PrimExpr add(PrimExpr a, PrimExpr b, Location loc) {
   BinaryOpMatchTypes(a, b, loc);
-  if (auto ret = prim::detail::TryConstFold<prim::Add>(a, b)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::Add>(a, b)) return ret.value();
   return prim::Add(a, b, loc);
 }
 
@@ -401,7 +401,7 @@ PrimExpr neg(PrimExpr a, Location loc) {
   if (pa) {
     ffi::BigInt value = -pa->value;
     if (a.ty().MatchesCode(DLDataTypeCode::kDLInt) && a.ty().bits() >= 64) {
-      value = prim::detail::GetFoldResult(std::move(value), a.ty());
+      value = prim::details::GetFoldResult(std::move(value), a.ty());
     }
     return IntImm(a.ty(), std::move(value), loc);
   }
@@ -413,20 +413,20 @@ PrimExpr operator-(PrimExpr a, PrimExpr b) { return sub(a, b); }
 
 PrimExpr sub(PrimExpr a, PrimExpr b, Location loc) {
   BinaryOpMatchTypes(a, b, loc);
-  if (auto ret = prim::detail::TryConstFold<prim::Sub>(a, b)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::Sub>(a, b)) return ret.value();
   return prim::Sub(a, b, loc);
 }
 
 PrimExpr operator*(PrimExpr a, PrimExpr b) { return mul(a, b); }
 PrimExpr mul(PrimExpr a, PrimExpr b, Location loc) {
   BinaryOpMatchTypes(a, b, loc);
-  if (auto ret = prim::detail::TryConstFold<prim::Mul>(a, b)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::Mul>(a, b)) return ret.value();
   return prim::Mul(a, b, loc);
 }
 
 PrimExpr div(PrimExpr a, PrimExpr b, Location loc) {
   BinaryOpMatchTypes(a, b, loc);
-  if (auto ret = prim::detail::TryConstFold<prim::Div>(a, b)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::Div>(a, b)) return ret.value();
   return prim::Div(a, b, loc);
 }
 
@@ -438,7 +438,7 @@ PrimExpr truncdiv(PrimExpr a, PrimExpr b, Location loc) {
 
 PrimExpr truncmod(PrimExpr a, PrimExpr b, Location loc) {
   BinaryOpMatchTypes(a, b, loc);
-  if (auto ret = prim::detail::TryConstFold<prim::Mod>(a, b)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::Mod>(a, b)) return ret.value();
   return prim::Mod(a, b, loc);
 }
 
@@ -457,7 +457,7 @@ PrimExpr floordiv(PrimExpr a, PrimExpr b, Location loc) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << a;
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << b;
   BinaryOpMatchTypes(a, b, loc);
-  if (auto ret = prim::detail::TryConstFold<prim::FloorDiv>(a, b)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::FloorDiv>(a, b)) return ret.value();
   return prim::FloorDiv(a, b, loc);
 }
 
@@ -465,7 +465,7 @@ PrimExpr ceildiv(PrimExpr a, PrimExpr b, Location loc) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << a;
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << b;
   BinaryOpMatchTypes(a, b, loc);
-  if (auto ret = prim::detail::TryConstFold<prim::FloorDiv>(a + b - 1, b)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::FloorDiv>(a + b - 1, b)) return ret.value();
   return prim::FloorDiv(a + b - 1, b, loc);
 }
 
@@ -473,33 +473,33 @@ PrimExpr floormod(PrimExpr a, PrimExpr b, Location loc) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << a;
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << b;
   BinaryOpMatchTypes(a, b, loc);
-  if (auto ret = prim::detail::TryConstFold<prim::FloorMod>(a, b)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::FloorMod>(a, b)) return ret.value();
   return prim::FloorMod(a, b, loc);
 }
 
 PrimExpr min(PrimExpr a, PrimExpr b, Location loc) {
   // inf-aware simplificaiton
-  using prim::detail::is_neg_inf;
-  using prim::detail::is_pos_inf;
+  using prim::is_neg_inf;
+  using prim::is_pos_inf;
   if (is_pos_inf(a)) return b;
   if (is_neg_inf(a)) return a;
   if (is_pos_inf(b)) return a;
   if (is_neg_inf(b)) return b;
   BinaryOpMatchTypes(a, b, loc);
-  if (auto ret = prim::detail::TryConstFold<prim::Min>(a, b)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::Min>(a, b)) return ret.value();
   return prim::Min(a, b, loc);
 }
 
 PrimExpr max(PrimExpr a, PrimExpr b, Location loc) {
   // inf-aware simplificaiton
-  using prim::detail::is_neg_inf;
-  using prim::detail::is_pos_inf;
+  using prim::is_neg_inf;
+  using prim::is_pos_inf;
   if (is_pos_inf(a)) return a;
   if (is_neg_inf(a)) return b;
   if (is_pos_inf(b)) return b;
   if (is_neg_inf(b)) return a;
   BinaryOpMatchTypes(a, b, loc);
-  if (auto ret = prim::detail::TryConstFold<prim::Max>(a, b)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::Max>(a, b)) return ret.value();
   return prim::Max(a, b, loc);
 }
 
@@ -531,35 +531,35 @@ PrimExpr likely(PrimExpr cond, Location loc) {
 PrimExpr operator>(PrimExpr a, PrimExpr b) { return greater(a, b); }
 PrimExpr greater(PrimExpr a, PrimExpr b, Location loc) {
   BinaryOpMatchTypes(a, b, loc);
-  if (auto ret = prim::detail::TryConstFold<prim::GT>(a, b)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::GT>(a, b)) return ret.value();
   return prim::GT(a, b, loc);
 }
 
 PrimExpr operator>=(PrimExpr a, PrimExpr b) { return greater_equal(a, b); }
 PrimExpr greater_equal(PrimExpr a, PrimExpr b, Location loc) {
   BinaryOpMatchTypes(a, b, loc);
-  if (auto ret = prim::detail::TryConstFold<prim::GE>(a, b)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::GE>(a, b)) return ret.value();
   return prim::GE(a, b, loc);
 }
 
 PrimExpr operator<(PrimExpr a, PrimExpr b) { return less(a, b); }
 PrimExpr less(PrimExpr a, PrimExpr b, Location loc) {
   BinaryOpMatchTypes(a, b, loc);
-  if (auto ret = prim::detail::TryConstFold<prim::LT>(a, b)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::LT>(a, b)) return ret.value();
   return prim::LT(a, b, loc);
 }
 
 PrimExpr operator<=(PrimExpr a, PrimExpr b) { return less_equal(a, b); }
 PrimExpr less_equal(PrimExpr a, PrimExpr b, Location loc) {
   BinaryOpMatchTypes(a, b, loc);
-  if (auto ret = prim::detail::TryConstFold<prim::LE>(a, b)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::LE>(a, b)) return ret.value();
   return prim::LE(a, b, loc);
 }
 
 PrimExpr operator==(PrimExpr a, PrimExpr b) { return equal(a, b); }
 PrimExpr equal(PrimExpr a, PrimExpr b, Location loc) {
   BinaryOpMatchTypes(a, b, loc);
-  if (auto ret = prim::detail::TryConstFold<prim::EQ>(a, b)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::EQ>(a, b)) return ret.value();
   if (IsVScaleCall(a) && IsVScaleCall(b)) return true;
   return prim::EQ(a, b, loc);
 }
@@ -567,7 +567,7 @@ PrimExpr equal(PrimExpr a, PrimExpr b, Location loc) {
 PrimExpr operator!=(PrimExpr a, PrimExpr b) { return not_equal(a, b); }
 PrimExpr not_equal(PrimExpr a, PrimExpr b, Location loc) {
   BinaryOpMatchTypes(a, b, loc);
-  if (auto ret = prim::detail::TryConstFold<prim::NE>(a, b)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::NE>(a, b)) return ret.value();
   return prim::NE(a, b, loc);
 }
 
@@ -579,7 +579,7 @@ PrimExpr logical_and(PrimExpr a, PrimExpr b, Location loc) {
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLBool))
       << "Expected boolean argument as RHS of && operator (logical AND), but received " << b
       << " of type " << b.ty();
-  if (auto ret = prim::detail::TryConstFold<prim::And>(a, b)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::And>(a, b)) return ret.value();
   return prim::And(a, b, loc);
 }
 
@@ -591,7 +591,7 @@ PrimExpr logical_or(PrimExpr a, PrimExpr b, Location loc) {
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLBool))
       << "Expected boolean argument as RHS of || operator (logical OR), but received " << b
       << " of type " << b.ty();
-  if (auto ret = prim::detail::TryConstFold<prim::Or>(a, b)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::Or>(a, b)) return ret.value();
   return prim::Or(a, b, loc);
 }
 
@@ -600,7 +600,7 @@ PrimExpr logical_not(PrimExpr a, Location loc) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLBool))
       << "Expected boolean argument for ! operator (logical NOT), but received " << a << " of type "
       << a.ty();
-  if (auto ret = prim::detail::TryConstFold<prim::Not>(a)) return ret.value();
+  if (auto ret = prim::TryConstFold<prim::Not>(a)) return ret.value();
   return prim::Not(a, loc);
 }
 
@@ -651,7 +651,7 @@ PrimExpr left_shift(PrimExpr a, PrimExpr b, Location loc) {
           << result_ty;
     if (pa && pb) {
       ffi::BigInt value = pa->value << pb->value;
-      if (result_ty.bits() >= 64) value = prim::detail::GetFoldResult(std::move(value), result_ty);
+      if (result_ty.bits() >= 64) value = prim::details::GetFoldResult(std::move(value), result_ty);
       return IntImm(result_ty, std::move(value), loc);
     }
     if (pb) {
@@ -733,7 +733,7 @@ PrimExpr prim::IntegerAbs(PrimExpr x, Location loc) {
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt)) {
     if (const IntImmNode* px = x.as<IntImmNode>()) {
       ffi::BigInt value = px->value < 0 ? -px->value : px->value;
-      if (x.ty().bits() >= 64) value = prim::detail::GetFoldResult(std::move(value), x.ty());
+      if (x.ty().bits() >= 64) value = prim::details::GetFoldResult(std::move(value), x.ty());
       return IntImm(x.ty(), std::move(value), px->loc);
     }
     return Select(x >= MakeConst(x.ty(), 0), x, -x, loc);
