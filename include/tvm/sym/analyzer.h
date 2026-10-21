@@ -494,7 +494,7 @@ class IntSetAnalyzer {
    */
   TVM_TIRX_DLL void Bind(const Var& var, const Range& new_range, bool allow_override = false);
 
-  std::function<void()> EnterConstraint(const PrimExpr& constraint);
+  TVM_TIRX_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
  private:
   friend class AnalyzerObj;
@@ -548,7 +548,8 @@ class Z3Prover {
    * \param is_assume Whether the constraint comes from an assumption.
    * \return an exit function that must be called to cleanup the constraint can be nullptr.
    */
-  std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume = false);
+  TVM_TIRX_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint,
+                                                     bool is_assume = false);
 
   /*!
    * \brief Get the SMTLIB2 representation of the current context.
@@ -556,28 +557,28 @@ class Z3Prover {
    * \param expr The optional expression to check.
    * \return The SMTLIB2 string.
    */
-  ffi::String GetSMTLIB2(const ffi::Optional<PrimExpr> expr);
+  TVM_TIRX_DLL ffi::String GetSMTLIB2(const ffi::Optional<PrimExpr> expr);
 
   /*!
    * \brief Get statistics about Z3 prover.
    *
    * \return The statistics string.
    */
-  ffi::String GetStats();
+  TVM_TIRX_DLL ffi::String GetStats();
 
   /*!
    * \brief Set timeout in milliseconds for Z3 prover.
    *
    * \param timeout_ms The timeout in milliseconds.
    */
-  void SetTimeoutMs(unsigned timeout_ms);
+  TVM_TIRX_DLL void SetTimeoutMs(unsigned timeout_ms);
 
   /*!
    * \brief Set resource limitation for Z3 prover.
    *
    * \param rlimit the resource limitation.
    */
-  void SetRLimit(unsigned rlimit);
+  TVM_TIRX_DLL void SetRLimit(unsigned rlimit);
 
   /*!
    * \brief Get the Z3 model for the given expression if satisfiable.
@@ -585,7 +586,7 @@ class Z3Prover {
    * \param expr The expression to get the model for.
    * \return The model as a string.
    */
-  ffi::String GetModel(const PrimExpr& expr);
+  TVM_TIRX_DLL ffi::String GetModel(const PrimExpr& expr);
 
   /*!
    * \brief Count the number of integer values that satisfy the current constraints.

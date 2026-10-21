@@ -68,7 +68,7 @@ class IRModuleFrameObj : public IRBuilderFrameObj {
                                     IRBuilderFrameObj);
 
  public:
-  void ExitWithScope() final;
+  TVM_TIRX_DLL void ExitWithScope() final;
 };
 
 /*!
@@ -160,9 +160,10 @@ class ForFrameObj : public StmtFrameObj {
 
  public:
   /*! \brief Apply source target names before entry, preserving variable identity. */
-  void SetNames(ffi::Optional<ffi::Variant<ffi::String, ffi::Array<ffi::String>>> names);
+  TVM_TIRX_DLL void SetNames(
+      ffi::Optional<ffi::Variant<ffi::String, ffi::Array<ffi::String>>> names);
   /*! \brief Construct the loop nest with this frame's stored source location. */
-  void ExitWithScope() final;
+  TVM_TIRX_DLL void ExitWithScope() final;
 };
 
 /*!
@@ -213,7 +214,7 @@ class AssertFrameObj : public StmtFrameObj {
    * \brief The method called when exiting RAII scope.
    * \sa tvm::support::With
    */
-  void ExitWithScope() final;
+  TVM_TIRX_DLL void ExitWithScope() final;
 };
 
 /*!
@@ -259,7 +260,7 @@ class RegionFrameObj : public StmtFrameObj {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.RegionFrame", RegionFrameObj, StmtFrameObj);
 
   /*! \brief Construct the region and add it to the enclosing builder frame. */
-  void ExitWithScope() final;
+  TVM_TIRX_DLL void ExitWithScope() final;
 };
 
 /*! \brief Managed reference to RegionFrameObj. */
@@ -297,7 +298,7 @@ class WhileFrameObj : public StmtFrameObj {
    * \brief The method called when exiting RAII scope.
    * \sa tvm::support::With
    */
-  void ExitWithScope() final;
+  TVM_TIRX_DLL void ExitWithScope() final;
 };
 
 /*!
@@ -346,7 +347,7 @@ class IfFrameObj : public StmtFrameObj {
    * \brief The method called when exiting RAII scope.
    * \sa tvm::support::With
    */
-  void ExitWithScope() final;
+  TVM_TIRX_DLL void ExitWithScope() final;
 };
 
 /*!
@@ -380,12 +381,12 @@ class ThenFrameObj : public StmtFrameObj {
    * \brief The method called when entering RAII scope.
    * \sa tvm::support::With
    */
-  void EnterWithScope() final;
+  TVM_TIRX_DLL void EnterWithScope() final;
   /*!
    * \brief The method called when exiting RAII scope.
    * \sa tvm::support::With
    */
-  void ExitWithScope() final;
+  TVM_TIRX_DLL void ExitWithScope() final;
 };
 
 /*!
@@ -419,12 +420,12 @@ class ElseFrameObj : public StmtFrameObj {
    * \brief The method called when entering RAII scope.
    * \sa tvm::support::With
    */
-  void EnterWithScope() final;
+  TVM_TIRX_DLL void EnterWithScope() final;
   /*!
    * \brief The method called when exiting RAII scope.
    * \sa tvm::support::With
    */
-  void ExitWithScope() final;
+  TVM_TIRX_DLL void ExitWithScope() final;
 };
 
 /*!

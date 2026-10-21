@@ -32,6 +32,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/creator.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ffi/rvalue_ref.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/with_context.h>
@@ -196,8 +197,9 @@ class PassContext : public ffi::ObjectRef {
   // The exit of a pass context scope.
   TVM_TIRX_DLL void ExitWithScope();
   // Register configuration key value type.
-  TVM_TIRX_DLL static void RegisterConfigOption(const char* key, ffi::String value_type_str,
-                                                std::function<ffi::Any(ffi::Any)> legalization);
+  TVM_TIRX_DLL static void RegisterConfigOption(
+      const char* key, ffi::String value_type_str,
+      ffi::TypedFunction<ffi::Any(ffi::Any)> legalization);
 
   // Classes to get the Python `with` like syntax.
   friend class Internal;
@@ -324,7 +326,7 @@ class Pass : public ffi::ObjectRef {
    *
    * \return The transformed module.
    */
-  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const;
+  TVM_TIRX_DLL IRModule operator()(IRModule mod, const PassContext& pass_ctx) const;
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Pass, ffi::ObjectRef, PassObj);
 
@@ -374,7 +376,7 @@ class SequentialObj : public PassObj {
    *
    * \return Return the updated module.
    */
-  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
+  TVM_TIRX_DLL IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.Sequential", SequentialObj, PassObj);
 };
 
@@ -400,21 +402,39 @@ class Sequential : public Pass {
 
   explicit Sequential(ffi::UnsafeInit tag) : Pass(tag) {}
 
-  const SequentialObj* operator->() const;
+  const SequentialObj* operator->() const { return static_cast<const SequentialObj*>(get()); }
   using ContainerType = SequentialObj;
 };
 
-/*
- * \brief Create a module pass.
+/*!
+ * \brief Create a module pass from an owning FFI callback.
  *
- * \param pass_func The packed function that contains the optimization.
+ * \param pass_func The callback that transforms the module.
  * \param opt_level The optimization level of the module pass.
  * \param name The name of the module pass.
- *
  * \return The created module pass.
  */
-TVM_TIRX_DLL Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pass_func,
-                                   int opt_level, ffi::String name);
+TVM_TIRX_DLL Pass
+CreateModulePass(ffi::TypedFunction<IRModule(ffi::RValueRef<IRModule>, PassContext)> pass_func,
+                 int opt_level, ffi::String name);
+
+/*!
+ * \brief Create a module pass from a native C++ callback.
+ *
+ * \param pass_func The callback that transforms the module.
+ * \param opt_level The optimization level of the module pass.
+ * \param name The name of the module pass.
+ * \return The created module pass.
+ */
+inline Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pass_func,
+                             int opt_level, ffi::String name) {
+  ffi::TypedFunction<IRModule(ffi::RValueRef<IRModule>, PassContext)> callback =
+      [pass_func = std::move(pass_func)](ffi::RValueRef<IRModule> mod,
+                                         PassContext ctx) -> IRModule {
+    return pass_func(*std::move(mod), std::move(ctx));
+  };
+  return CreateModulePass(std::move(callback), opt_level, std::move(name));
+}
 
 /*!
  * \brief A special trace pass that prints the header and IR to LOG(INFO).

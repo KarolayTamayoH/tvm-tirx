@@ -49,18 +49,37 @@ using tvm::transform::Sequential;
 /*! \brief Wrap a function body in a device scope region. */
 TVM_TIRX_DLL Pass DecorateDeviceScope();
 
-/*
- * \brief Create a function pass that optimizes Functions.
+/*!
+ * \brief Create a function pass from an owning FFI callback.
  *
- * \param pass_func The packed function that contains the optimization.
+ * \param pass_func The callback that transforms each function, returning std::nullopt to remove it.
  * \param opt_level The optimization level of the function pass.
  * \param name The name of the function pass.
- *
  * \return The created function pass.
  */
 TVM_TIRX_DLL Pass CreateFunctionPass(
-    std::function<ffi::Optional<Function>(Function, IRModule, PassContext)> pass_func,
+    ffi::TypedFunction<ffi::Optional<Function>(ffi::RValueRef<Function>, IRModule, PassContext)>
+        pass_func,
     int opt_level, ffi::String name);
+
+/*!
+ * \brief Create a function pass from a native C++ callback.
+ *
+ * \param pass_func The callback that transforms each function, returning std::nullopt to remove it.
+ * \param opt_level The optimization level of the function pass.
+ * \param name The name of the function pass.
+ * \return The created function pass.
+ */
+inline Pass CreateFunctionPass(
+    std::function<ffi::Optional<Function>(Function, IRModule, PassContext)> pass_func,
+    int opt_level, ffi::String name) {
+  ffi::TypedFunction<ffi::Optional<Function>(ffi::RValueRef<Function>, IRModule, PassContext)>
+      callback = [pass_func = std::move(pass_func)](ffi::RValueRef<Function> func, IRModule mod,
+                                                    PassContext ctx) -> ffi::Optional<Function> {
+    return pass_func(*std::move(func), std::move(mod), std::move(ctx));
+  };
+  return CreateFunctionPass(std::move(callback), opt_level, std::move(name));
+}
 
 /*!
  * \brief Lower vectorization loops.

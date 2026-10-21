@@ -878,9 +878,13 @@ ConstIntBound ConstIntBoundAnalyzer::operator()(const PrimExpr& expr) const {
 }
 
 ConstIntBound ConstIntBoundAnalyzer::operator()(const PrimExpr& expr, BoundMapType* bound) {
+  struct RestoreMemo {
+    Impl* impl;
+    BoundMapType* previous;
+    ~RestoreMemo() { impl->bound_ = previous; }
+  } restore{impl_.get(), impl_->bound_};
   impl_->bound_ = bound;
   Entry ret = impl_->Dispatch(expr);
-  impl_->bound_ = nullptr;
   return ConstIntBound(ret.min_value, ret.max_value);
 }
 
