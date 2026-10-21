@@ -267,7 +267,7 @@ foreach(_target tvm_runtime tvm_tirx_compiler ${TVM_RUNTIME_BACKEND_LIBS})
   elseif(UNIX)
     target_link_options(${_target} PRIVATE "-Wl,--no-undefined")
   endif()
-  tvm_ffi_hide_static_linked_lib_symbols(${_target})
+  tvm_tirx_hide_static_linked_lib_symbols(${_target})
   tvm_ffi_add_apple_dsymutil(${_target})
 endforeach()
 
@@ -278,7 +278,7 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/"
   DESTINATION include COMPONENT tvm_tirx FILES_MATCHING PATTERN "*.h")
 
 # Libraries
-install(TARGETS tvm_tirx_header tvm_tirx_compiler tvm_runtime tvm_runtime_static
+install(TARGETS tvm_tirx_header tvm_tirx_compiler tvm_runtime
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm_tirx
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm_tirx
   RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm_tirx)
