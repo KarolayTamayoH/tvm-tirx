@@ -30,9 +30,12 @@
 #include <tvm/ffi/object.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/tile/thread_scope.h>
+
+#include <algorithm>
 
 namespace tvm {
 
@@ -154,7 +157,10 @@ class IterNode : public ffi::Object {
 
 class Iter : public ffi::ObjectRef {
  public:
-  TVM_TIRX_DLL explicit Iter(PrimExpr extent, PrimExpr stride, Axis axis);
+  explicit Iter(PrimExpr extent, PrimExpr stride, Axis axis) {
+    auto n = ffi::make_object<IterNode>(std::move(extent), std::move(stride), std::move(axis));
+    data_ = std::move(n);
+  }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Iter, ffi::ObjectRef, IterNode);
 };
 
@@ -177,11 +183,20 @@ class TileLayoutNode : public LayoutNode {
 
 class TileLayout : public Layout {
  public:
-  TVM_TIRX_DLL explicit TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
-                                   ffi::Map<Axis, PrimExpr> offset);
+  explicit TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
+                      ffi::Map<Axis, PrimExpr> offset)
+      : Layout(ffi::UnsafeInit{}) {
+    auto n = ffi::make_object<TileLayoutNode>();
+    n->shard = std::move(shard);
+    n->replica = std::move(replica);
+    n->offset = std::move(offset);
+    data_ = std::move(n);
+  }
 
   /*! \brief Get the shape of the shard */
-  TVM_TIRX_DLL ffi::Array<PrimExpr> GetShardShape() const;
+  ffi::Array<PrimExpr> GetShardShape() const {
+    return get()->shard.Map([](const Iter& iter) { return iter->extent; });
+  }
 
   /*!
    * \brief Whether the tile describes contiguous row-major memory strides.
@@ -193,10 +208,20 @@ class TileLayout : public Layout {
   TVM_TIRX_DLL bool IsContiguous(ffi::Optional<sym::Analyzer> analyzer = std::nullopt) const;
 
   /*! \brief Is the layout trivial (pure memory, identical mapping) */
-  TVM_TIRX_DLL bool IsTrivial() const;
+  bool IsTrivial() const {
+    if (get()->shard.size() > 1) return false;
+    if (get()->shard.size() == 1) {
+      if (!get()->shard[0]->axis->IsMemoryAxis() || !prim::IsOne(get()->shard[0]->stride))
+        return false;
+    }
+    return get()->replica.size() == 0 && get()->offset.size() == 0;
+  }
 
   /*! \brief Has Thread Axis */
-  TVM_TIRX_DLL bool HasThreadAxis() const;
+  bool HasThreadAxis() const {
+    return std::any_of(get()->shard.begin(), get()->shard.end(),
+                       [](const Iter& iter) { return iter->axis->IsThreadAxis(); });
+  }
 
   /*! \brief Get the scope pair of the layout */
   TVM_TIRX_DLL ffi::Optional<Tuple<ThreadScope, ThreadScope>> GetScope() const;
