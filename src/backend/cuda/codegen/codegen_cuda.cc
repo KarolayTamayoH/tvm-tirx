@@ -73,6 +73,25 @@ TVM_FFI_INLINE bool IsPackedFloat(const PrimType& ty) {
   return IsFloat8(ty) || IsFloat6(ty) || IsFloat4(ty);
 }
 
+// Constant-operand classification for min/max, the same classification as
+// the host side's min_max_utils.h (#31), scalar FloatImm only here. A
+// constant NaN lhs is the result (the rhs is still bound and evaluated); a
+// constant NaN rhs keeps the lhs on any comparison outcome; a constant
+// non-NaN operand lets the ternary skip its NaN clause (an ordered compare
+// against a constant is never NaN). A vector constant (Broadcast of a
+// FloatImm) takes the general per-lane path.
+TVM_FFI_INLINE const FloatImmObj* AsFloatImm(const PrimExpr& e) { return e.as<FloatImmObj>(); }
+
+// NaN-preserving min/max is emitted for float, half and bfloat16: the C
+// ternary below keeps the NaN operand instead of discarding it (apache/tvm
+// PR #20054). Integer min/max stays as it is.
+TVM_FFI_INLINE bool IsFloatMinMaxNanPreserving(const PrimType& ty) {
+  bool is_fp = ty.MatchesCode(DLDataTypeCode::kDLFloat) &&
+               (ty.bits() == 16 || ty.bits() == 32 || ty.bits() == 64);
+  bool is_bf16 = ty.MatchesCode(DLDataTypeCode::kDLBfloat) && ty.bits() == 16;
+  return is_fp || is_bf16;
+}
+
 }  // namespace
 
 std::string GetFP8Type(const PrimType& type_ty) {
@@ -734,6 +753,104 @@ void CodeGenCUDA::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
 void CodeGenCUDA::PrintVecConstructor(const PrimType& t, std::ostream& os) {
   os << "make_";
   PrintType(t, os);
+}
+
+// min/max for CUDA, keeping a NaN operand (apache/tvm PR #20054), for
+// float16/bfloat16/float32/float64. For a NaN-free pair this is min()/max();
+// the lhs-NaN clause fires on the first operand and the rhs-NaN case is
+// covered because the ordering compare is false when either operand is NaN.
+template <typename T>
+void CodeGenCUDA::PrintMinMaxNanPreservingImpl(const T* op, const char* opstr,
+                                               std::ostream& os) {  // NOLINT(*)
+  PrimType op_ty = op->ty.template as_or_throw<PrimType>();
+  const char* cmp = (opstr[0] == 'm' && opstr[1] == 'i') ? "<" : ">";
+  if (!IsFloatMinMaxNanPreserving(op_ty)) {
+    // Integer / non-float min/max keeps the base-codegen path, including the
+    // vectorized per-lane expansion for lanes > 1.
+    this->CodeGenC::Dispatch_(op, os);
+    return;
+  }
+  if (op_ty.lanes() > 1) {
+    this->PrintVecBinaryOpNanPreserving(std::string(opstr), op_ty, op->a, op->b, cmp, os);
+    return;
+  }
+  // Bind both operands once (SSAGetID, in the expression's own scope: the
+  // same binding the host side and PrintVecBinaryOp use), then reference the
+  // temporaries: the expressions must not be re-evaluated per clause. Both
+  // are bound before the constant classification below, so a constant NaN
+  // lhs still evaluates the rhs and only the select is dropped. A
+  // float32/float64 constant comes back from SSAGetID as itself (PrintConst
+  // registers its text with MarkConst); a float16/bfloat16 constant is
+  // wrapped in a conversion call that is not registered and gets a temporary
+  // like any other operand. The bindings live in their own scope so a later
+  // statement that prints the same text (e.g.
+  // `red_buf[0] = max(red_buf[0], shuffle_down(...))` repeated by warp
+  // reduction) does not hit the cache and read the pre-write value.
+  int ssa_scope = BeginScope();
+  std::string va = SSAGetID(PrintExpr(op->a), op->a.ty());
+  std::string vb = SSAGetID(PrintExpr(op->b), op->b.ty());
+  const FloatImmObj* ca = AsFloatImm(op->a);
+  const FloatImmObj* cb = AsFloatImm(op->b);
+  if (ca != nullptr && std::isnan(ca->value)) {
+    // a constant NaN lhs is the result; the rhs stays bound above.
+    os << va;
+  } else if (ca != nullptr) {
+    // lhs is a constant non-NaN: ordered compare, b's NaN makes the compare
+    // false and b is kept.
+    os << "((" << va << ' ' << cmp << ' ' << vb << ") ? " << va << " : " << vb << ')';
+  } else if (cb != nullptr && std::isnan(cb->value)) {
+    // rhs is a constant NaN: keep a on any comparison outcome.
+    os << "((" << va << " != " << va << ") ? " << va << " : " << vb << ')';
+  } else if (cb != nullptr) {
+    // rhs is a constant non-NaN: reverse to a non-strict compare so a's NaN
+    // makes the compare false and a is kept; ties take b.
+    const char* rcmp = (cmp[0] == '<') ? ">=" : "<=";
+    os << "((" << va << ' ' << rcmp << ' ' << vb << ") ? " << vb << " : " << va << ')';
+  } else {
+    os << "(((" << va << ' ' << cmp << ' ' << vb << ") || (" << va << " != " << va << ")) ? " << va
+       << " : " << vb << ')';
+  }
+  EndScope(ssa_scope);
+}
+
+void CodeGenCUDA::Dispatch_(const prim::MinObj* op, std::ostream& os) {  // NOLINT(*)
+  this->PrintMinMaxNanPreservingImpl(op, "min", os);
+}
+
+void CodeGenCUDA::Dispatch_(const prim::MaxObj* op, std::ostream& os) {  // NOLINT(*)
+  this->PrintMinMaxNanPreservingImpl(op, "max", os);
+}
+
+void CodeGenCUDA::PrintVecBinaryOpNanPreserving(const std::string& op, const PrimType& t,
+                                                PrimExpr lhs, PrimExpr rhs, const char* cmp,
+                                                std::ostream& os) {  // NOLINT(*)
+  std::string sret = name_supply_->FreshName("_");
+  this->PrintIndent();
+  this->PrintType(t, stream);
+  stream << ' ' << sret << ";\n";
+  int ssa_scope = BeginScope();
+  {
+    std::string vlhs = SSAGetID(PrintExpr(lhs), lhs.ty());
+    std::string vrhs = SSAGetID(PrintExpr(rhs), rhs.ty());
+    for (int i = 0, lanes = t.lanes(); i < lanes; ++i) {
+      std::ostringstream value_temp;
+      value_temp << "((";
+      PrintVecElemLoad(vlhs, lhs.ty(), i, value_temp);
+      value_temp << ' ' << cmp << ' ';
+      PrintVecElemLoad(vrhs, rhs.ty(), i, value_temp);
+      value_temp << ") || (";
+      PrintVecElemLoad(vlhs, lhs.ty(), i, value_temp);
+      value_temp << " != ";
+      PrintVecElemLoad(vlhs, lhs.ty(), i, value_temp);
+      value_temp << ")) ? ";
+      PrintVecElemLoad(vlhs, lhs.ty(), i, value_temp);
+      value_temp << " : ";
+      PrintVecElemLoad(vrhs, rhs.ty(), i, value_temp);
+      PrintVecElemStore(sret, t, i, value_temp.str());
+    }
+  }
+  EndScope(ssa_scope);
+  os << sret;
 }
 
 void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, const PrimType& t, PrimExpr lhs,
@@ -1503,9 +1620,9 @@ inline void PrintConst(const FloatImmObj* op, std::ostream& os, CodeGenCUDA* p) 
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   // Type code is kBFloat
   if (op_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
-    os << "__float2bfloat16_rn";
-    os << '(' << std::hexfloat << op->value << 'f';
-    os << "/*" << std::scientific << op->value << "*/";
+    os << "__float2bfloat16_rn" << '(';
+    FloatImm const_f32 = FloatImm(PrimType::Float(32), op->value);
+    PrintConst(const_f32.get(), os, p);
     os << ')';
     return;
   }

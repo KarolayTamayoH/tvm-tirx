@@ -791,6 +791,139 @@ def test_vectorized_intrin1(*, backend_config):
         run_test(*func, "float16")
 
 
+def _min_max_module(dtype, form, n=12):
+    # One kernel per (dtype, form) computes a 15-row matrix (2 rows for int32), the
+    # shape of the host side's test (#31): rows 0-4 min of (A,B), (0,A), (A,0), (nan,A),
+    # (A,nan); 5-9 the same for max; 10-11 max(A,B)+1 and max(0,A)+1 (the ternary must
+    # stay parenthesized before "+"); 12 chained C=0; C=max(C,3); C=max(C,2) (a stale
+    # cached read of C gives 2); 13-14 min(A,+inf), max(A,-inf). The constants are
+    # FloatImms built outside the kernel (-inf as its own: a negated float16 FloatImm is
+    # not folded): scalar takes codegen's constant fast paths (NaN constant inline,
+    # constant rhs as a reversed non-strict compare), vec4 the per-lane "||" path.
+    is_float = dtype != "int32"
+    rows = 15 if is_float else 2
+    zero, one = T.cast(0, dtype), T.cast(1, dtype)
+    nan = T.cast(float("nan"), dtype) if is_float else None
+    inf = T.cast(float("inf"), dtype) if is_float else None
+    ninf = T.cast(float("-inf"), dtype) if is_float else None
+
+    @I.ir_module
+    class Module:
+        @T.function
+        def main(A: T.Tensor((n,), dtype), B: T.Tensor((n,), dtype), C: T.Tensor((rows, n), dtype)):
+            T.func_attr({"tirx.noalias": True})
+            if T.constexpr(form == "vec4"):
+                with T.launch_thread("blockIdx.x", n // 4) as i0:
+                    for i1 in T.vectorized(4):
+                        if T.constexpr(is_float):
+                            C[0, i0 * 4 + i1] = T.min(A[i0 * 4 + i1], B[i0 * 4 + i1])
+                            C[1, i0 * 4 + i1] = T.min(zero, A[i0 * 4 + i1])
+                            C[2, i0 * 4 + i1] = T.min(A[i0 * 4 + i1], zero)
+                            C[3, i0 * 4 + i1] = T.min(nan, A[i0 * 4 + i1])
+                            C[4, i0 * 4 + i1] = T.min(A[i0 * 4 + i1], nan)
+                            C[5, i0 * 4 + i1] = T.max(A[i0 * 4 + i1], B[i0 * 4 + i1])
+                            C[6, i0 * 4 + i1] = T.max(zero, A[i0 * 4 + i1])
+                            C[7, i0 * 4 + i1] = T.max(A[i0 * 4 + i1], zero)
+                            C[8, i0 * 4 + i1] = T.max(nan, A[i0 * 4 + i1])
+                            C[9, i0 * 4 + i1] = T.max(A[i0 * 4 + i1], nan)
+                            C[10, i0 * 4 + i1] = T.max(A[i0 * 4 + i1], B[i0 * 4 + i1]) + one
+                            C[11, i0 * 4 + i1] = T.max(zero, A[i0 * 4 + i1]) + one
+                            C[12, i0 * 4 + i1] = zero
+                            C[12, i0 * 4 + i1] = T.max(C[12, i0 * 4 + i1], T.cast(3, dtype))
+                            C[12, i0 * 4 + i1] = T.max(C[12, i0 * 4 + i1], T.cast(2, dtype))
+                            C[13, i0 * 4 + i1] = T.min(A[i0 * 4 + i1], inf)
+                            C[14, i0 * 4 + i1] = T.max(A[i0 * 4 + i1], ninf)
+                        else:
+                            C[0, i0 * 4 + i1] = T.min(A[i0 * 4 + i1], B[i0 * 4 + i1])
+                            C[1, i0 * 4 + i1] = T.max(A[i0 * 4 + i1], B[i0 * 4 + i1])
+            else:
+                with T.launch_thread("threadIdx.x", n) as i:
+                    if T.constexpr(is_float):
+                        C[0, i] = T.min(A[i], B[i])
+                        C[1, i] = T.min(zero, A[i])
+                        C[2, i] = T.min(A[i], zero)
+                        C[3, i] = T.min(nan, A[i])
+                        C[4, i] = T.min(A[i], nan)
+                        C[5, i] = T.max(A[i], B[i])
+                        C[6, i] = T.max(zero, A[i])
+                        C[7, i] = T.max(A[i], zero)
+                        C[8, i] = T.max(nan, A[i])
+                        C[9, i] = T.max(A[i], nan)
+                        C[10, i] = T.max(A[i], B[i]) + one
+                        C[11, i] = T.max(zero, A[i]) + one
+                        C[12, i] = zero
+                        C[12, i] = T.max(C[12, i], T.cast(3, dtype))
+                        C[12, i] = T.max(C[12, i], T.cast(2, dtype))
+                        C[13, i] = T.min(A[i], inf)
+                        C[14, i] = T.max(A[i], ninf)
+                    else:
+                        C[0, i] = T.min(A[i], B[i])
+                        C[1, i] = T.max(A[i], B[i])
+
+    return Module
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@pytest.mark.parametrize("form", ["scalar", "vec4"])
+@pytest.mark.parametrize("dtype", ["float32", "float64", "float16", "bfloat16", "int32"])
+def test_min_max_nan_preserving_cuda(dtype, form, *, backend_config):
+    n = 12
+    is_float = dtype != "int32"
+    mod = tvm_tirx.tirx.compile(
+        _min_max_module(dtype, form, n), target={"kind": "cuda", "backend_config": backend_config}
+    )
+    # The CUDA header before the kernel has "||" in preprocessor lines, so the text is
+    # checked from the kernel declaration on. float never falls back to bare min()/max()
+    # (the general rows emit "||", the constant NaN rows CUDART_NAN_F, a scalar constant
+    # rhs the reversed non-strict compare); int32 keeps the base min()/max() path.
+    src = mod.mod.imports[0].inspect_source()
+    kernel = src[src.index("__global__") :]
+    if dtype == "float32":
+        assert "||" in kernel and "CUDART_NAN_F" in kernel, kernel
+        assert "min(" not in kernel and "max(" not in kernel, kernel
+        if form == "scalar":
+            assert " >= " in kernel or " <= " in kernel, kernel
+    elif not is_float:
+        assert "min(" in kernel and "max(" in kernel, kernel
+
+    if is_float:
+        inf = np.inf
+        a_np = np.array([np.nan, 1, np.nan, 0.0, -0.0, 3, 2, -5, inf, -inf, 1, -1], dtype=dtype)
+        b_np = np.array([1, np.nan, np.nan, -0.0, 0.0, 2, 2, -4, 1, 1, inf, -inf], dtype=dtype)
+        zero, nan = np.zeros(n, dtype=dtype), np.full(n, np.nan, dtype=dtype)
+        pairs = [(a_np, b_np), (zero, a_np), (a_np, zero), (nan, a_np), (a_np, nan)]
+        rows = [
+            np.where(cmp(x, y) | np.isnan(x), x, y)
+            for cmp in (np.less, np.greater)
+            for x, y in pairs
+        ]
+        rows += [rows[5] + 1, rows[6] + 1, np.full(n, 3, dtype=dtype), a_np, a_np]
+    else:
+        a_np = np.array([3, -5, 7, 0, -1, 9, 2, -8, 4, 4, -2, 0], dtype=dtype)
+        b_np = np.array([1, 9, -2, 4, -3, 9, 5, -8, 0, -4, -2, 1], dtype=dtype)
+        rows = [np.minimum(a_np, b_np), np.maximum(a_np, b_np)]
+    expected = np.stack(rows)
+    a = tvm_tirx.runtime.tensor(a_np, tvm_tirx.cuda(0))
+    b = tvm_tirx.runtime.tensor(b_np, tvm_tirx.cuda(0))
+    c = tvm_tirx.runtime.empty(expected.shape, dtype, tvm_tirx.cuda(0))
+
+    def run_and_check():
+        mod(a, b, c)
+        got = c.numpy()
+        if not is_float:
+            np.testing.assert_array_equal(got, expected)
+            return
+        # NaN lanes are checked with isnan (CUDART_NAN_F and a min/max instruction
+        # normalize the payload); every finite lane, including the sign of zero, bitwise.
+        nan_mask = np.isnan(expected)
+        np.testing.assert_array_equal(np.isnan(got), nan_mask)
+        bits = {2: "uint16", 4: "uint32", 8: "uint64"}[expected.dtype.itemsize]
+        np.testing.assert_array_equal(got.view(bits)[~nan_mask], expected.view(bits)[~nan_mask])
+
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
+
+
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_round_ties_to_even(*, backend_config):
