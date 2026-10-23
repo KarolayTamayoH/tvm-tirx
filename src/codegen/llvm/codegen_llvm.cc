@@ -1640,15 +1640,27 @@ llvm::Value* CodeGenLLVM::Dispatch_(const prim::ModObj* op) {
 }
 
 llvm::Value* CodeGenLLVM::Dispatch_(const prim::MinObj* op) {
-  llvm::Value* a = MakeValue(op->a);
-  llvm::Value* b = MakeValue(op->b);
-  return builder_->CreateSelect(CreateLT(PrimType(op->a.ty()->dtype), a, b), a, b);
+  return CreateMinMax(op->a, op->b, /*is_min=*/true);
 }
 
 llvm::Value* CodeGenLLVM::Dispatch_(const prim::MaxObj* op) {
-  llvm::Value* a = MakeValue(op->a);
-  llvm::Value* b = MakeValue(op->b);
-  return builder_->CreateSelect(CreateGT(PrimType(op->a.ty()->dtype), a, b), a, b);
+  return CreateMinMax(op->a, op->b, /*is_min=*/false);
+}
+
+llvm::Value* CodeGenLLVM::CreateMinMax(const PrimExpr& lhs, const PrimExpr& rhs, bool is_min) {
+  llvm::Value* lhs_value = MakeValue(lhs);
+  llvm::Value* rhs_value = MakeValue(rhs);
+  if (lhs_value->getType()->isFPOrFPVectorTy()) {
+    // Propagate NaNs lane-wise for scalars, fixed-length vectors, and scalable vectors.
+    // On a signed-zero tie, minimum selects -0 and maximum selects +0.
+    return is_min ? builder_->CreateMinimum(lhs_value, rhs_value)
+                  : builder_->CreateMaximum(lhs_value, rhs_value);
+  }
+
+  PrimType dtype(lhs.ty()->dtype);
+  llvm::Value* take_lhs =
+      is_min ? CreateLT(dtype, lhs_value, rhs_value) : CreateGT(dtype, lhs_value, rhs_value);
+  return builder_->CreateSelect(take_lhs, lhs_value, rhs_value);
 }
 
 llvm::Value* CodeGenLLVM::Dispatch_(const prim::EQObj* op) {

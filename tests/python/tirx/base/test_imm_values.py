@@ -121,6 +121,26 @@ def test_tir_integer_cast_folding():
     assert scalable.ty == tvm_tirx.ir.PrimType("int8xvscalex4")
 
 
+@pytest.mark.parametrize("dtype", ["float16", "bfloat16", "float32", "float64"])
+def test_min_max_floatimm_const_fold(dtype):
+    for operation in (tirx.min, tirx.max):
+        for lhs, rhs, expected_side in (
+            (np.nan, 1.0, "lhs"),
+            (1.0, np.nan, "rhs"),
+            (np.nan, np.nan, "lhs"),
+            (0.0, -0.0, "rhs"),
+            (-0.0, 0.0, "rhs"),
+        ):
+            a, b = tirx.const(lhs, dtype), tirx.const(rhs, dtype)
+            result = operation(a, b)
+            expected = a if expected_side == "lhs" else b
+            if math.isnan(expected.value):
+                assert math.isnan(result.value)
+            else:
+                assert result.value == expected.value
+                assert np.signbit(result.value) == np.signbit(expected.value)
+
+
 def compare_float_value(value, expect, msg):
     if math.isfinite(value):
         assert np.abs(value - expect) < 1e-5, f"{value} vs {expect}, {msg}"

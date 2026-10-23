@@ -62,6 +62,7 @@ class CodeGenCHost : public CodeGenC {
   // overload visitor functions
   void Dispatch_(const prim::BroadcastObj* op, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const CallObj* op, std::ostream& os) override;          // NOLINT(*)
+  void Dispatch_(const FloatImmObj* op, std::ostream& os) final;         // NOLINT(*)
   // overload min and max to use the ternary operator, so we don't rely on the
   // standard library implementations
   void Dispatch_(const prim::MinObj* op, std::ostream& os) final;  // NOLINT(*)
@@ -96,15 +97,15 @@ class CodeGenCHost : public CodeGenC {
   void PrintGetFuncFromBackend(const std::string& func_name, const std::string& packed_func_name);
   void PrintCallPacked(const CallObj* op);
   /*!
-   * \brief Print ternary conditional operator implementing binary `op`
+   * \brief Print min/max, propagating floating-point NaNs and selecting rhs on ties.
    * Forces the operands to be in SSA form.
-   * \param op binary operator being expressed
-   * \param compare string representation of comparison operator
+   * \param lhs Left operand.
+   * \param rhs Right operand.
+   * \param is_min Whether to print min (true) or max (false).
    * \param os stream reference to print into
    */
-  template <typename T>
-  inline void PrintTernaryCondExpr(const T* op, const char* compare,
-                                   std::ostream& os);  // NOLINT(*)
+  void PrintMinMax(const PrimExpr& lhs, const PrimExpr& rhs, bool is_min,
+                   std::ostream& os);  // NOLINT(*)
 };
 
 }  // namespace codegen

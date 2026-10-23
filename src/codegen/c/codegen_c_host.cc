@@ -31,9 +31,12 @@
 #include <tvm/tirx/op/abi.h>
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "../min_max_utils.h"
 
 namespace tvm {
 namespace codegen {
@@ -350,26 +353,71 @@ void CodeGenCHost::Dispatch_(const AssertStmtObj* op) {  // NOLINT(*)
   }
 }
 
+void CodeGenCHost::Dispatch_(const FloatImmObj* op, std::ostream& os) {  // NOLINT(*)
+  if (std::isfinite(op->value)) {
+    CodeGenC::Dispatch_(op, os);
+    return;
+  }
+
+  const char* literal;
+  if (std::isnan(op->value)) {
+    literal = "NAN";
+  } else if (op->value < 0) {
+    literal = "-INFINITY";
+  } else {
+    literal = "INFINITY";
+  }
+  os << "((";
+  PrintType(op->ty.as_or_throw<PrimType>(), os);
+  os << ")" << literal << ")";
+}
+
 void CodeGenCHost::Dispatch_(const prim::MinObj* op, std::ostream& os) {  // NOLINT(*)
-  PrintTernaryCondExpr(op, "<", os);
+  PrintMinMax(op->a, op->b, /*is_min=*/true, os);
 }
 
 void CodeGenCHost::Dispatch_(const prim::MaxObj* op, std::ostream& os) {  // NOLINT(*)
-  PrintTernaryCondExpr(op, ">", os);
+  PrintMinMax(op->a, op->b, /*is_min=*/false, os);
 }
 
-template <typename T>
-inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
-                                               std::ostream& os) {  // NOLINT(*)
-  std::ostringstream temp_a;
-  Dispatch(op->a, temp_a);
-  std::string a_id = SSAGetID(temp_a.str(), op->a.ty());
-  std::ostringstream temp_b;
-  Dispatch(op->b, temp_b);
-  std::string b_id = SSAGetID(temp_b.str(), op->b.ty());
+void CodeGenCHost::PrintMinMax(const PrimExpr& lhs, const PrimExpr& rhs, bool is_min,
+                               std::ostream& os) {  // NOLINT(*)
+  std::ostringstream temp_lhs;
+  Dispatch(lhs, temp_lhs);
+  std::string lhs_value = "(" + SSAGetID(temp_lhs.str(), lhs.ty()) + ")";
+  std::ostringstream temp_rhs;
+  Dispatch(rhs, temp_rhs);
+  std::string rhs_value = "(" + SSAGetID(temp_rhs.str(), rhs.ty()) + ")";
+  PrimType dtype = lhs.ty().as_or_throw<PrimType>();
+  FloatNaNStatus lhs_nan_status = GetFloatNaNStatus(lhs);
+  FloatNaNStatus rhs_nan_status = GetFloatNaNStatus(rhs);
+  const char* compare = is_min ? "<" : ">";
+  const char* take_rhs_compare = is_min ? ">=" : "<=";
 
-  os << "((" << a_id << ") " << compare << " (" << b_id << ") "
-     << "? (" << a_id << ") : (" << b_id << "))";
+  std::string condition;
+  std::string true_value = lhs_value;
+  std::string false_value = rhs_value;
+  if (!dtype.MatchesCode(DLDataTypeCode::kDLFloat) ||
+      lhs_nan_status == FloatNaNStatus::kKnownNotNaN) {
+    // Integers and a known non-NaN lhs need only the strict comparison.
+    condition = lhs_value + " " + compare + " " + rhs_value;
+  } else if (lhs_nan_status == FloatNaNStatus::kKnownNaN) {
+    os << lhs_value;
+    return;
+  } else if (rhs_nan_status == FloatNaNStatus::kKnownNaN) {
+    // isnan(lhs) ? lhs : rhs: select lhs only if it is also NaN.
+    condition = lhs_value + " != " + lhs_value;
+  } else if (rhs_nan_status == FloatNaNStatus::kKnownNotNaN) {
+    // For min: lhs >= rhs ? rhs : lhs. A NaN lhs makes >= false and is kept.
+    condition = lhs_value + " " + take_rhs_compare + " " + rhs_value;
+    true_value = rhs_value;
+    false_value = lhs_value;
+  } else {
+    // For min: (lhs < rhs || isnan(lhs)) ? lhs : rhs. Max uses > instead.
+    condition = "(" + lhs_value + " " + compare + " " + rhs_value + ") || (" + lhs_value +
+                " != " + lhs_value + ")";
+  }
+  os << "((" << condition << ") ? " << true_value << " : " << false_value << ")";
 }
 
 ffi::Module BuildCHost(IRModule mod, Target target) {
