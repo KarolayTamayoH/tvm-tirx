@@ -32,8 +32,8 @@ use tvm_ffi::tvm_ffi_sys::{
     TVMFFIAny, TVMFFIFieldFlagBitMask, TVMFFIGetTypeInfo, TVMFFIObject, TVMFFITypeIndex,
 };
 use tvm_ffi::{
-    Any, AnyView, DLDataType, DLDataTypeCode, DLDataTypeExt, Error, ErrorKind, Function, ObjectArc,
-    ObjectRefCore, Result, TypeAttrColumn, INTERNAL_ERROR, TYPE_ERROR,
+    Any, AnyView, Array, DLDataType, DLDataTypeCode, DLDataTypeExt, Error, ErrorKind, Function,
+    ObjectArc, ObjectRefCore, Result, TypeAttrColumn, INTERNAL_ERROR, TYPE_ERROR,
 };
 
 use super::{Expr, Op, OpAttrMap, OpObj, PrimType, PrimTypeObj};
@@ -43,6 +43,40 @@ pub(crate) const UINT: u8 = DLDataTypeCode::kDLUInt as u8;
 pub(crate) const FLOAT: u8 = DLDataTypeCode::kDLFloat as u8;
 pub(crate) const BFLOAT: u8 = DLDataTypeCode::kDLBfloat as u8;
 pub(crate) const BOOL: u8 = DLDataTypeCode::kDLBool as u8;
+
+/// C++ `support::kMaxFloat16`, the largest finite float16.
+pub(crate) const MAX_FLOAT16: f64 = 65504.0;
+/// C++ `support::kMaxBFloat16` (`0x1.fep127`), the largest finite bfloat16.
+pub(crate) const MAX_BFLOAT16: f64 = 3.389_531_389_251_535_5e38;
+
+/// The largest finite value of each float8 type code, and whether the type is unsigned
+/// (`support::kMax*` in `src/support/limits.h`).
+pub(crate) fn float8_bound(code: u8) -> Option<(f64, bool)> {
+    use tvm_ffi::DLDataTypeCode::*;
+    let bound = match code {
+        c if c == kDLFloat8_e3m4 as u8 => (31.0, false),
+        c if c == kDLFloat8_e4m3 as u8 => (448.0, false),
+        c if c == kDLFloat8_e4m3b11fnuz as u8 => (30.0, true),
+        c if c == kDLFloat8_e4m3fn as u8 => (448.0, false),
+        c if c == kDLFloat8_e4m3fnuz as u8 => (448.0, true),
+        c if c == kDLFloat8_e5m2 as u8 => (57344.0, false),
+        c if c == kDLFloat8_e5m2fnuz as u8 => (57344.0, true),
+        // `support::kMaxE8M0FNU`, 2^128.
+        c if c == kDLFloat8_e8m0fnu as u8 => (3.402_823_669_209_385e38, true),
+        _ => return None,
+    };
+    Some(bound)
+}
+
+/// The largest finite value of each float6 type code.
+pub(crate) fn float6_bound(code: u8) -> Option<f64> {
+    use tvm_ffi::DLDataTypeCode::*;
+    match code {
+        c if c == kDLFloat6_e2m3fn as u8 => Some(7.5),
+        c if c == kDLFloat6_e3m2fn as u8 => Some(28.0),
+        _ => None,
+    }
+}
 
 // ---------------------------------------------------------------------------------------------
 // Errors
@@ -243,6 +277,35 @@ pub(crate) fn scalable_vector(dtype: DLDataType, factor: i32) -> Result<DLDataTy
         return Err(compare_failed(INTERNAL_ERROR, "lanes < 32768", factor, 32768, ""));
     }
     Ok(DLDataType { code: dtype.code, bits: dtype.bits, lanes: (-factor) as u16 })
+}
+
+// ---------------------------------------------------------------------------------------------
+// Sequences
+
+/// The object header followed by `TVMFFISeqCell`, the layout `ffi.List` and `ffi.Array` share
+/// (`c_api.h`).
+#[repr(C)]
+pub(crate) struct SeqCell {
+    pub(crate) object: tvm_ffi::Object,
+    pub(crate) data: *const TVMFFIAny,
+    pub(crate) size: i64,
+    pub(crate) capacity: i64,
+    pub(crate) data_deleter: Option<unsafe extern "C" fn(*mut c_void)>,
+}
+
+/// The elements of an `ffi.Array`, read in place.
+pub(crate) fn array_cells<T: tvm_ffi::type_traits::ContainerElement + Clone>(
+    array: &Array<T>,
+) -> &[TVMFFIAny] {
+    // SAFETY: an `ffi.Array` is the object header followed by `TVMFFISeqCell`, and `array` keeps
+    // its `size` elements alive.
+    unsafe {
+        let cell = &*(ObjectArc::as_raw(ObjectRefCore::data(array)) as *const SeqCell);
+        if cell.size == 0 {
+            return &[];
+        }
+        std::slice::from_raw_parts(cell.data, cell.size as usize)
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
