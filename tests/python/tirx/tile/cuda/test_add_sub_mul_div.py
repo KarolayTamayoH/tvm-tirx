@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# The parser consumes named IR bindings that Python sees as unused.
+# ruff: noqa: F841
+
 """Native arithmetic instructions, broadcasts, and caller-composed half division."""
 
 import math
@@ -108,7 +111,7 @@ def _reference(operation, a, b):
 @pytest.mark.parametrize("operands_type", ["region_region", "region_const", "const_region"])
 @pytest.mark.parametrize("dtype", ["float16"])
 def test_binary_op_shared(input, op_type, operands_type, dtype):
-    g_shape, st_a, st_b, st_res, ext_a, ext_b, ext_res, thread_cnt, device_id = input
+    g_shape, st_a, st_b, st_res, ext_a, ext_b, ext_res, thread_cnt, _device_id = input
     size, count = math.prod(g_shape), math.prod(ext_a)
     layout = TileLayout(S[g_shape])
 
@@ -434,7 +437,7 @@ def test_binary_op_local_subcta_trivial(thread_scope, rhs_kind, op_type):
 @pytest.mark.parametrize("op_type", ["add", "sub", "mul", "fdiv"])
 @pytest.mark.parametrize("dtype", ["float16"])
 def test_binary_op_vectorized(input, storage_scope, thread_scope, op_type, dtype):
-    a_shape, b_shape, res_shape, thread_cnt, device_id = input
+    a_shape, b_shape, _res_shape, thread_cnt, _device_id = input
     row_a, row_b = a_shape[1:], b_shape[1:]
     n, m = math.prod(row_a), math.prod(row_b)
     # Half pairs are adjacent, including in the m-axis broadcast.

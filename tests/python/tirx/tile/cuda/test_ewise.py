@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# The parser consumes named IR bindings that Python sees as unused.
+# ruff: noqa: F841
+
 """Caller-defined scalar compositions and explicit memory staging."""
 
 import math
@@ -85,7 +88,7 @@ def _run(kernel, arrays, expected, output=0, atol=1e-3, rtol=1e-7, target="cuda"
 
 
 def _shared_case(input, operation, src_dtype, dst_dtype, bias_type=None, target="cuda"):
-    shape, start, end, extent, result_extent, threads, device = input
+    shape, start, end, extent, result_extent, threads, _device = input
     size, count = math.prod(shape), math.prod(extent)
     in_place = src_dtype == dst_dtype
     bias_constant = 0.88 if bias_type == "const" else 0
@@ -295,7 +298,7 @@ def test_unary_op_shared_with_bias_scale(input, op_type, bias_type, src_dtype, d
     "src_dtype,dst_dtype", [("float16", "float16"), ("float32", "float16"), ("float32", "bfloat16")]
 )
 def test_unary_op_local(input, op_type, src_dtype, dst_dtype):
-    layout, N_GROUPS, N_WARPS, thread_cnt, device_id = input
+    layout, N_GROUPS, N_WARPS, _thread_cnt, device_id = input
     assert layout == "wgmma", "logical tensor which is not WGMMA layout is not supported"
 
     # get shape info
@@ -436,7 +439,7 @@ def test_unary_op_local(input, op_type, src_dtype, dst_dtype):
     "src_dtype,dst_dtype", [("float32", "float32"), ("float32", "float16"), ("float32", "bfloat16")]
 )
 def test_unary_op_local_with_bias_scale(input, op_type, bias_type, src_dtype, dst_dtype):
-    layout, N_GROUPS, N_WARPS, thread_cnt, device_id = input
+    layout, N_GROUPS, N_WARPS, _thread_cnt, device_id = input
     assert layout == "wgmma", "logical tensor which is not WGMMA layout is not supported"
 
     # get shape info

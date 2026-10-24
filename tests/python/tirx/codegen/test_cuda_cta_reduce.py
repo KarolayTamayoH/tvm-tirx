@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+# The parser consumes named IR bindings that Python sees as unused.
+# ruff: noqa: F841
 """Tests for T.cuda.cta_reduce / cta_sum / cta_max / cta_min intrinsics."""
 
 import numpy as np

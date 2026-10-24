@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# The parser consumes named IR bindings that Python sees as unused.
+# ruff: noqa: F841
+
 """TIRx script basic usage."""
 
 from __future__ import annotations
@@ -1748,9 +1751,11 @@ def test_loop_jump_statement():
     jumps = []
     tvm_ffi.structural_walk(
         implicit.body,
-        lambda node: jumps.append(node)
-        if isinstance(node, tvm_tirx.ir.Break | tvm_tirx.ir.Continue)
-        else None,
+        lambda node: (
+            jumps.append(node)
+            if isinstance(node, tvm_tirx.ir.Break | tvm_tirx.ir.Continue)
+            else None
+        ),
     )
     assert sum(isinstance(node, tvm_tirx.ir.Break) for node in jumps) == 1
     assert sum(isinstance(node, tvm_tirx.ir.Continue) for node in jumps) == 1

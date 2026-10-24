@@ -28,10 +28,13 @@ For example, you can use addexp.a to get the left operand of an Add node.
   assert(y.a == x)
 """
 
+# Historical compatibility imports are public exports.
+# ruff: noqa: F401
+
 from tvm_tirx import ir
 from tvm_tirx.ir import Expr as Expr
 from tvm_tirx.ir import const as const
-from tvm_tirx.ir._prim_expr_overload import (  # noqa: F401
+from tvm_tirx.ir._prim_expr_overload import (
     EqualOp,
     ExprOp,
     NotEqualOp,
@@ -40,7 +43,7 @@ from tvm_tirx.ir._prim_expr_overload import (  # noqa: F401
 from tvm_tirx.ir.prim import convert as convert
 
 # Retain historical imports as aliases of the canonical shared definitions.
-from tvm_tirx.ir.prim.expr import (  # noqa: F401
+from tvm_tirx.ir.prim.expr import (
     EQ,
     GE,
     GT,

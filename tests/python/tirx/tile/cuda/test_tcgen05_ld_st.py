@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+# The parser consumes named IR bindings that Python sees as unused.
+# ruff: noqa: F841
 # pylint: disable=invalid-name, missing-function-docstring
 """Tests for the tcgen05 TMEM load/store (ld/st) dispatch.
 
@@ -931,7 +934,6 @@ def _run_load_test(shape: str, rep: int, dtype: str):
     # configs whose K_cols_fp32 exceeds 128 we split the stage into multiple
     # chunks of CHUNK_FP32 fp32 cols each.
     CHUNK_FP32 = 128
-    chunk_elem = CHUNK_FP32 * elem_per_32b
     num_chunks = tmem_col_width_32b // CHUNK_FP32 if tmem_col_width_32b > CHUNK_FP32 else 1
     chunk_width_32b = tmem_col_width_32b if num_chunks == 1 else CHUNK_FP32
     chunk_width_elem = chunk_width_32b * elem_per_32b
@@ -942,9 +944,6 @@ def _run_load_test(shape: str, rep: int, dtype: str):
     if stage_width_elem % VEC_LEN != 0:
         pytest.skip(f"stage_width_elem {stage_width_elem} % VEC_LEN {VEC_LEN} != 0")
 
-    g_layout = TileLayout(
-        S[(128, stage_width_elem // VEC_LEN, VEC_LEN) : (stage_width_elem, VEC_LEN, 1)]
-    )
     chunk_view = TileLayout(S[(128, chunk_width_elem) : (1 @ axis_tid_in_wg, 1)])
     # Preserve the original register allocation; _atom_words only reorganizes
     # its logical axes for the instruction explicitly selected below.

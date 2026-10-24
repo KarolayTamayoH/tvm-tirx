@@ -14,11 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401
+
+# The parser consumes named IR bindings that Python sees as unused.
+# ruff: noqa: F841
+
 
 import tvm_tirx
 import tvm_tirx.testing
-from tvm_tirx import ir, tirx
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 

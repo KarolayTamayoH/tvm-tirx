@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+# The parser consumes named IR bindings that Python sees as unused.
+# ruff: noqa: F841
 import pytest
 
 from tvm_tirx.script import tirx as T
@@ -175,7 +178,7 @@ def test_preferred_cluster_validation():
         T.cuda.LaunchConfig(grid=8, block=128, preferred_cluster=2)
     with pytest.raises(ValueError, match="divisible"):
         T.cuda.LaunchConfig(grid=(8, 3), block=128, cluster=(2, 1), preferred_cluster=(2, 2))
-    with pytest.raises(ValueError, match="cluster.z"):
+    with pytest.raises(ValueError, match=r"cluster\.z"):
         T.cuda.LaunchConfig(grid=(8, 4, 2), block=128, cluster=(2, 1), preferred_cluster=(2, 2, 2))
         # fmt: on
 

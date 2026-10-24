@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# The parser consumes named IR bindings that Python sees as unused.
+# ruff: noqa: F841
+
 """TIRx script tensors."""
 
 import math
@@ -593,7 +596,7 @@ def test_tensor_physical_view_layout_overrides_roundtrip():
         B_custom[0, 0] = T.float32(2)
         # fmt: on
 
-    _, b_buf, b_storage, b_custom = _collect_tensors(func)
+    _, _b_buf, b_storage, b_custom = _collect_tensors(func)
     assert_structural_equal(b_storage.ty.layout, T.TileLayout(T.S[(2, 8, 2) : (2, 4, 1)]))
     assert not b_storage.ty.layout.is_trivial()
     assert not b_custom.ty.layout.is_trivial()
@@ -1165,7 +1168,6 @@ def test_tensor_sub_swizzle_commutation():
 
     a2, b2, c2, d2, e2, _ = _collect_tensors(func2)
     base2 = a2.layout.apply(0).get("m", 0)
-    shape2 = [2, 16, 8]
     for name, child, to_parent in [
         ("B", b2, lambda c: (c[0], 1, c[1])),
         ("C", c2, lambda c: (c[0], c[1], 1)),

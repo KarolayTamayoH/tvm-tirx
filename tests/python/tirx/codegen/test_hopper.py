@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+# The parser consumes named IR bindings that Python sees as unused.
+# ruff: noqa: F841
 # pylint: disable=missing-function-docstring
 import math
 
@@ -72,7 +75,7 @@ def test_ptx_setmaxnreg(inc):
         T.ptx[f"setmaxnreg.{'inc' if T.constexpr(inc) else 'dec'}.sync.aligned.u32"](32)
         # fmt: on
 
-    src, mod = _get_source(func)
+    src, _mod = _get_source(func)
     assert "setmaxnreg" in src
     if inc:
         assert "inc" in src
@@ -302,7 +305,7 @@ def test_bar_arrive():
         T.ptx.bar.arrive(0, 128)
         # fmt: on
 
-    src, mod = _get_source(func)
+    src, _mod = _get_source(func)
     assert "tvm_builtin_ptx_bar_arrive_arrive((uint)0, (uint)128)" in src
     assert 'bar.arrive %0, %1;" :  : "r"(__a), "r"(__b) : "memory"' in src
 
@@ -319,7 +322,7 @@ def test_bar_sync():
         T.ptx.bar.sync(0, 128)
         # fmt: on
 
-    src, mod = _get_source(func)
+    src, _mod = _get_source(func)
     assert "tvm_builtin_ptx_bar_sync_count_sync((uint)0, (uint)128)" in src
     assert 'bar.sync %0, %1;" :  : "r"(__a), "r"(__b) : "memory"' in src
 
@@ -336,7 +339,7 @@ def test_barrier_sync_unaligned():
         T.ptx.barrier.sync(0, 128)
         # fmt: on
 
-    src, mod = _get_source(func)
+    src, _mod = _get_source(func)
     assert "tvm_builtin_ptx_barrier_sync_count_sync((uint)0, (uint)128)" in src
     assert 'barrier.sync %0, %1;" :  : "r"(__a), "r"(__b) : "memory"' in src
 
@@ -353,7 +356,7 @@ def test_fence_mbarrier_init_release_clsuter():
         T.ptx.fence.mbarrier_init.release.cluster()
         # fmt: on
 
-    src, mod = _get_source(func)
+    src, _mod = _get_source(func)
     assert "fence.mbarrier_init.release.cluster" in src
 
 
@@ -370,7 +373,7 @@ def test_ptx_elect_sync():
             A[tx] = tx
         # fmt: on
 
-    src, mod = _get_source(func)
+    src, _mod = _get_source(func)
     print(src)
     assert "elect.sync _|%%px, %1;" in src
     assert ".reg .b32 %%rx;" not in src
@@ -390,7 +393,7 @@ def test_ptx_fence(sem, scope):
         T.ptx[f"fence.{sem}.{scope}"]()
         # fmt: on
 
-    src, mod = _get_source(func)
+    src, _mod = _get_source(func)
     assert f"fence.{sem}.{scope};" in src
 
 
@@ -408,7 +411,7 @@ def test_fence_proxy_async():
 
         # fmt: on
 
-    src, mod = _get_source(func)
+    src, _mod = _get_source(func)
     assert "fence.proxy.async.global" in src
     assert "fence.proxy.async.shared::cta" in src
 
@@ -1410,7 +1413,7 @@ def test_mapa():
         if cbx == 0 and tx == 0:
             T.ptx.mapa.u64(mapped[0], A_smem.data, T.uint32(cbx))
 
-    src, mod = _get_source(func)
+    src, _mod = _get_source(func)
     print(src)
     assert "tvm_builtin_ptx_mapa_u64(" in src
 

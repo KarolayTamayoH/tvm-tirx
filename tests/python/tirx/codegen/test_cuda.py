@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+# The parser consumes named IR bindings that Python sees as unused.
+# ruff: noqa: F841
 # pylint: disable=missing-function-docstring
 import gc
 import re
@@ -932,7 +935,7 @@ def test_cuda_thread_fence():
         if tx == 0:
             T.cuda.thread_fence()
 
-    src, mod = _get_source(main)
+    src, _mod = _get_source(main)
     assert "tvm_builtin_cuda_thread_fence" in src
 
 
@@ -945,7 +948,7 @@ def test_cuda_nano_sleep():
         if tx == 0:
             T.cuda.nano_sleep(1)
 
-    src, mod = _get_source(main)
+    src, _mod = _get_source(main)
     assert "tvm_builtin_cuda_nano_sleep" in src
 
 
@@ -958,7 +961,7 @@ def test_cuda_atomic_cas():
         if tx == 0:
             T.cuda.atomic_cas(A.data, T.int32(1), T.int32(2))
 
-    src, mod = _get_source(main)
+    src, _mod = _get_source(main)
     assert "tvm_builtin_cuda_atomic_cas" in src
 
 
@@ -1190,7 +1193,7 @@ def test_ptx_ldmatrix(trans, num):
             B[row + tx // 4, col + tx % 4 * 2 + i % 2] = A_local[i]
         # fmt: on
 
-    src, mod = _get_source(main, target="cuda")
+    _src, mod = _get_source(main, target="cuda")
     A_np = np.arange(16 * 16, dtype="float16").reshape((16, 16))
     B_np = np.zeros((16, 16), dtype="float16")
     B_ref = np.zeros((16, 16), dtype="float16")

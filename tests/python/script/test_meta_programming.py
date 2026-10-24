@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+# The parser consumes named IR bindings that Python sees as unused.
+# ruff: noqa: F841
 """Shared parser meta programming."""
 
 from __future__ import annotations
@@ -22,7 +25,6 @@ import gc
 import weakref
 
 # Script-local bindings are observed through the constructed IR.
-# ruff: noqa: F841
 from contextlib import contextmanager
 from types import SimpleNamespace
 

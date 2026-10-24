@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+# The parser consumes named IR bindings that Python sees as unused.
+# ruff: noqa: F841
 """Shared parser error handling."""
 
 from __future__ import annotations
@@ -23,9 +26,6 @@ import inspect
 import traceback
 
 import pytest
-
-# Script-local bindings are observed through the constructed IR.
-# ruff: noqa: F841
 from minilang import Value
 
 import tvm_tirx
@@ -346,7 +346,7 @@ def test_store_rhs_failure_precedes_target_evaluation(language):
 def test_namespace_rebinding_reports_source_location(language):
     # A fixed source namespace cannot become a local binding; the error must identify that target.
     M = language.M
-    with pytest.raises(SyntaxError, match="namespace|shadow|rebind") as caught:
+    with pytest.raises(SyntaxError, match=r"namespace|shadow|rebind") as caught:
 
         @M.function
         def main():
@@ -425,7 +425,7 @@ def test_reserved_captured_builtin_reports_its_use(language, name):
 @pytest.mark.parametrize("binding", ["alias, *other = M, 1, 2", "value = (alias := M)"])
 def test_local_namespace_alias_is_rejected(language, binding):
     source = "@M.function\ndef main():\n    " + binding
-    with pytest.raises(SyntaxError, match="namespace 'M'.*alias") as caught:
+    with pytest.raises(SyntaxError, match=r"namespace 'M'.*alias") as caught:
         entry.parse(source, {"M": language.M}, filename="alias.py")
     assert (caught.value.filename, caught.value.lineno) == ("alias.py", 3)
     assert source.splitlines()[2][caught.value.offset - 1] == "M"
@@ -444,7 +444,7 @@ def test_host_import_cannot_replace_reserved_names(language, prefix):
         if prefix.startswith("class")
         else "@M.function\ndef main():\n    pass"
     )
-    with pytest.raises(SyntaxError, match="'range'.*reserved") as caught:
+    with pytest.raises(SyntaxError, match=r"'range'.*reserved") as caught:
         entry.parse(
             source, {"M": language.M, "effect": lambda: effects.append(1)}, filename="import.py"
         )

@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# The parser consumes named IR bindings that Python sees as unused.
+# ruff: noqa: F841
+
 import pytest
 
 import tvm_tirx
@@ -685,7 +688,7 @@ def test_most_restrictive_conditional():
     allow for later rewrites.  For example, if it is known that `a <= b`,
     then `a >= b` cannot be proven, but can be reduced to `a == b`.
     """
-    i, j, k = [T.dynamic(name, "int32") for name in "ijk"]
+    i, j, _k = [T.dynamic(name, "int32") for name in "ijk"]
     tir_int = T.int32(0)
 
     test_cases = [

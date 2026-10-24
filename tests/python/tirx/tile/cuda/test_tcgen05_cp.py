@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+# The parser consumes named IR bindings that Python sees as unused.
+# ruff: noqa: F841
 # pylint: disable=invalid-name, missing-function-docstring
 """Native tcgen05.cp layouts, regions, multicast and CTA-pair readbacks.
 
@@ -152,8 +155,6 @@ def _make_cp_kernel(
     extra_cfg=None,
     pre_zero=False,
 ):
-    s_sl = tuple(slice(a, b) for a, b in s_region)
-    t_sl = tuple(slice(a, b) for a, b in t_region)
     s_full_sl = tuple(slice(0, e) for e in s_full_shape)
     cfg = {"shape": shape, "multicast": multicast}
     if extra_cfg:
@@ -488,7 +489,6 @@ def _make_cp_kernel_cta2(s_full, s_shape, t_full, t_shape, dtype, cfg, W32, n_co
     only the even CTA issues the cp (cta_group=2, commit cta_mask=3); both CTAs
     dump their own tmem into B[cbx*128 + lane]."""
     s_sl = tuple(slice(0, e) for e in s_shape)
-    t_sl = tuple(slice(0, e) for e in t_shape)
 
     shape = cfg["shape"]
     opcode = _cp_opcode(shape, cfg.get("multicast"), cfg["cta_group"], cfg.get("decompress"))
@@ -762,7 +762,7 @@ def test_cp_rejects_wrong_replica_for_multicast():
 
 
 def test_cp_rejects_illegal_shape_multicast_combo():
-    with pytest.raises((ValueError, RuntimeError), match="takes no multicast|Invalid PTX"):
+    with pytest.raises((ValueError, RuntimeError), match=r"takes no multicast|Invalid PTX"):
         _build_case("128x256b", None, 3, "bfloat16", 1, extra_cfg={"multicast": "warpx4"})
 
 
@@ -771,8 +771,8 @@ def test_cp_rejects_missing_multicast_for_64x128b():
     C = 128 // bits
     t_full, t_full_shape = _tmem_layout_for("64x128b", "warpx2::02_13", C)
     s_full = mma_shared_layout("bfloat16", SwizzleMode(3), [64, 64])
-    with pytest.raises((ValueError, RuntimeError), match="requires multicast|Invalid PTX"):
-        kernel = _make_cp_kernel(
+    with pytest.raises((ValueError, RuntimeError), match=r"requires multicast|Invalid PTX"):
+        _make_cp_kernel(
             s_full,
             [64, 64],
             [(0, 64), (0, C)],
@@ -812,7 +812,7 @@ def test_cp_rejects_non_128b_tcol_offset():
 
 
 def test_cp_rejects_unknown_shape():
-    with pytest.raises((KeyError, ValueError, RuntimeError), match="96x128b|Invalid PTX"):
+    with pytest.raises((KeyError, ValueError, RuntimeError), match=r"96x128b|Invalid PTX"):
         _build_case("32x128b", "warpx4", 3, "bfloat16", 1, extra_cfg={"shape": "96x128b"})
 
 

@@ -124,7 +124,7 @@ def test_rvv_vscale_llvm_dbginfo(target):
 
     # tvm.RuntimeError: Can't fetch the lanes of a scalable vector at a compile time.
     with tvm_tirx.target.Target(target):
-        f = tvm_tirx.tirx.compile(rvv_with_vscale, target).mod
+        tvm_tirx.tirx.compile(rvv_with_vscale, target).mod
 
 
 @pytest.mark.skipif(not env.has_llvm_min_version(14), reason="need llvm >= 14")

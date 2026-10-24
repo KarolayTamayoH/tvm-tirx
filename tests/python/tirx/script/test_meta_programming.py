@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# The parser consumes named IR bindings that Python sees as unused.
+# ruff: noqa: F841
+
 """TIRx script meta programming."""
 
 from __future__ import annotations
@@ -33,7 +36,7 @@ def test_meta_class_constructor_rejects_unowned_resource():
     @T.meta_class
     class Bad:
         def __init__(self):
-            tmp = T.bind_(T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")]))
+            T.bind_(T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")]))
 
     with pytest.raises(ValueError):
 

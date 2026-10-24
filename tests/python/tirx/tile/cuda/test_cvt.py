@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# The parser consumes named IR bindings that Python sees as unused.
+# ruff: noqa: F841
+
 """Native cvt instructions over explicit register views."""
 
 import math
@@ -437,7 +440,7 @@ def test_cast_local_view_sliced(A_dtype, B_dtype, slice_start, slice_end):
 def test_cast_mixed_axes_and_subregion(slice_start, slice_end):
     """Test cast with mixed axes and subregion."""
 
-    N_WARPS, LANES = 2, 32
+    N_WARPS = 2
     LOCAL_LEN = 4
     full_shape = (8, N_WARPS, 4, LOCAL_LEN)
     g_layout = TileLayout(S[full_shape])
@@ -555,7 +558,7 @@ def test_cast_validate_extent_mismatch_rejected():
         # span the full CTA), which fires first — either rejection is fine.
         with pytest.raises(
             Exception,
-            match="incorrect .* owner",
+            match=r"incorrect .* owner",
         ):
             tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
 

@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# The parser consumes named IR bindings that Python sees as unused.
+# ruff: noqa: F841
+
 """Native tcgen05.mma instructions with explicit operand views."""
 
 import functools
@@ -478,8 +481,6 @@ def test_gemm_tcgen05_cta_group_2(task):
     A_layout = mma_shared_layout(A_dtype, A_swizzle_mode, A_shape_per_cta)
     B_layout = mma_shared_layout(B_dtype, B_swizzle_mode, B_shape_per_cta)
 
-    r_smem_A_in = list(slice(0, A_shape_per_cta[i]) for i in range(len(A_shape_per_cta)))
-    r_smem_B_in = list(slice(0, B_shape_per_cta[i]) for i in range(len(B_shape_per_cta)))
     total_bytes = (
         functools.reduce(operator.mul, A_shape, 1) * A_elem_bytes
         + functools.reduce(operator.mul, B_shape, 1) * B_elem_bytes
@@ -1114,11 +1115,11 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
         (A_shape, A_dtype, A_region, A_swizzle_mode),
         (B_shape, B_dtype, B_region, B_swizzle_mode),
         SF_dtype,
-        transA,
-        transB,
+        _transA,
+        _transB,
     ) = task
 
-    M, K = A_shape
+    M, _K = A_shape
     N = B_shape[0]
     width = C_region[1][1] - C_region[1][0]
     assert C_shape[0] == 128
@@ -1457,8 +1458,6 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
     A_layout = mma_shared_layout(A_dtype, A_swizzle_mode, A_shape_per_cta)
     B_layout = mma_shared_layout(B_dtype, B_swizzle_mode, B_shape_per_cta)
 
-    r_smem_A_in = list(slice(0, A_shape_per_cta[i]) for i in range(len(A_shape_per_cta)))
-    r_smem_B_in = list(slice(0, B_shape_per_cta[i]) for i in range(len(B_shape_per_cta)))
     total_bytes = (
         functools.reduce(operator.mul, A_shape, 1) * A_elem_bytes
         + functools.reduce(operator.mul, B_shape, 1) * B_elem_bytes
@@ -3062,8 +3061,6 @@ def test_gemm_tcgen05_arbitrary_tiles(task, copy_perm, a_major, b_major):
         else mma_shared_layout(B_dtype, B_swizzle_mode, B_shape)
     )
 
-    r_gmem_A = list(slice(0, A_shape[i]) for i in range(len(A_shape)))
-    r_gmem_B = list(slice(0, B_shape[i]) for i in range(len(B_shape)))
     total_bytes = (
         functools.reduce(operator.mul, A_shape, 1) * A_elem_bytes
         + functools.reduce(operator.mul, B_shape, 1) * B_elem_bytes

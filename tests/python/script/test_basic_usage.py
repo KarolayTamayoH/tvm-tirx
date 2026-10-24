@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+# The parser consumes named IR bindings that Python sees as unused.
+# ruff: noqa: F841
 """Shared parser basic usage."""
 
 from __future__ import annotations
@@ -25,7 +28,6 @@ import pytest
 import tvm_ffi
 
 # Script-local bindings are observed through the constructed IR.
-# ruff: noqa: F841
 from minilang import Value
 
 import tvm_tirx

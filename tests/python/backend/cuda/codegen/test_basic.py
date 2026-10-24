@@ -500,7 +500,7 @@ def test_cuda_reduction_binding(*, backend_config):
                             B[m_0 * 32 + m_1] = T.float32(0.0)
                         B[m_0 * 32 + m_1] = B[m_0 * 32 + m_1] + A[m_0 * 32 + m_1, k]
 
-    func = tvm_tirx.tirx.compile(Module, target={"kind": "cuda", "backend_config": backend_config})
+    tvm_tirx.tirx.compile(Module, target={"kind": "cuda", "backend_config": backend_config})
 
 
 @pytest.mark.gpu
