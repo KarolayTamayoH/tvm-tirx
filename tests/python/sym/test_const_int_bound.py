@@ -104,6 +104,20 @@ def test_plain_var_non_negative_bound_requires_context():
     assert analyzer.const_int_bound(var).min_value == NEG_INF
 
 
+def test_affine_predicate_bound():
+    x = tvm_tirx.tirx.Var("x", "int64")
+    analyzer = tvm_tirx.sym.Analyzer()
+    parent = tvm_tirx.sym.ConstraintContext()
+    context = parent.snapshot()
+    context.append(tvm_tirx.sym.PredicateConstraint(3 * x + 2 == -7))
+    analyzer.sync_constraint_context(context)
+    bound = analyzer.const_int_bound(x)
+    assert (bound.min_value, bound.max_value) == (-3, -3)
+    analyzer.sync_constraint_context(parent)
+    bound = analyzer.const_int_bound(x)
+    assert (bound.min_value, bound.max_value) == (NEG_INF, POS_INF)
+
+
 class TestCastBound(BaseCompare):
     x = tvm_tirx.tirx.Var("x", "int8")
     tmod = tvm_tirx.tirx.truncmod
