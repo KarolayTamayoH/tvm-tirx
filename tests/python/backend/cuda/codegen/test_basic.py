@@ -926,6 +926,34 @@ def test_min_max_nan_preserving_cuda(dtype, form, *, backend_config):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_atomic_operand_evaluation():
+    @T.function
+    def main(P: T.Tensor((1,), "float32"), O: T.Tensor((1,), "float32x4")):
+        with T.launch_thread("threadIdx.x", 1):
+            # Two independent atomics run once each; broadcast copies their max.
+            O[0] = T.Broadcast(
+                T.max(
+                    T.cuda.atomic_add(T.address_of(P[0]), T.float32(1)),
+                    T.cuda.atomic_add(T.address_of(P[0]), T.float32(1)),
+                ),
+                4,
+            )
+
+    executable = tvm_tirx.tirx.compile(main, target="cuda")
+
+    def run_and_check():
+        dev = tvm_tirx.cuda(0)
+        counter = tvm_tirx.runtime.tensor(np.zeros(1, dtype="float32"), dev)
+        output = tvm_tirx.runtime.empty((1,), "float32x4", dev)
+        executable(counter, output)
+        np.testing.assert_array_equal(output.numpy(), [[1] * 4])
+        np.testing.assert_array_equal(counter.numpy(), [2])
+
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_round_ties_to_even(*, backend_config):
     # The CUDA rule lowers tirx.round to nearbyint/nearbyintf (ties-to-even,
     # matching constant-folding semantics), so exact midpoints must round to

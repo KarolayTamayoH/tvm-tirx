@@ -190,6 +190,29 @@ def test_round():
     check_c()
 
 
+def test_min_max_reads_after_store():
+    @I.ir_module
+    class Module:
+        # Keep both reads in one SSA cache scope, without public ABI checks.
+        @T.function(private=True)
+        def check(p: T.handle("float32"), o: T.handle("float32")):
+            P = T.decl_tensor(p, ty_args=[T.Tensor((1,), "float32", data=p)])
+            Out = T.decl_tensor(o, ty_args=[T.Tensor((2,), "float32", data=o)])
+            Out[0] = T.max(P[0], T.float32(0))
+            P[0] = 8.0
+            Out[1] = T.max(P[0], T.float32(0))
+
+        @T.function
+        def main(P: T.Tensor((1,), "float32"), Out: T.Tensor((2,), "float32")):
+            Module.check(P.data, Out.data)
+
+    executable = tvm_tirx.tirx.compile(Module, target="c")
+    data = tvm_tirx.runtime.tensor(np.ones(1, dtype="float32"))
+    output = tvm_tirx.runtime.empty((2,), "float32")
+    executable(data, output)
+    np.testing.assert_array_equal(output.numpy(), [1, 8])
+
+
 def test_subroutine_call():
     @I.ir_module
     class Module:
