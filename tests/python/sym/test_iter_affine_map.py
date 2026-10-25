@@ -1133,25 +1133,6 @@ class TestPadding:
         # padding for free iteration part
         ({y: 360}, {fld(x * 360 + y, 16): (23, fld(x * 360 - flm(x, 2) * 8, 16), 1)}),
         ({y: 360}, {flm(x * 360 + y, 16): (16, 0, 1)}),
-        # multiple split with same mark offset, could
-        # be surjective on missing (padded // LCM)
-        (
-            {x: 240},
-            {
-                flm(x + 10, 3): (3, 0),
-                flm(fld(x + 10, 3), 4): (4, 0),
-                flm(fld(fld(x + 10, 3), 4), 5): (5, 0),
-            },
-        ),
-        # different offsets on splits
-        (
-            {x: 240},
-            {
-                flm(x + 1, 3): (3, 0),
-                flm(fld(x + 10, 3) + 2, 4): (4, 0),
-                flm(fld(fld(x + 10, 3), 4) + 3, 5): (5, 0),
-            },
-        ),
     )
 
     @pytest.fixture(params=_positive_test_case_params, scope="session")
@@ -1173,6 +1154,26 @@ class TestPadding:
                 flm(fld(x + 10, 3), 4),
                 flm(fld(fld(x + 10, 3), 4), 5),
                 fld(fld(fld(x + 10, 3), 4), 5),
+            },
+        ),
+        # The collected maximum source padding is 9, but the low digit
+        # requires remainder 1 modulo 3.  Sharing that padding is unsound.
+        (
+            {x: 240},
+            {
+                flm(x + 10, 3),
+                flm(fld(x + 10, 3), 4),
+                flm(fld(fld(x + 10, 3), 4), 5),
+            },
+        ),
+        # Different nested offsets collect padding 36, which also fails to
+        # preserve the low digit's remainder 1 modulo 3.
+        (
+            {x: 240},
+            {
+                flm(x + 1, 3),
+                flm(fld(x + 10, 3) + 2, 4),
+                flm(fld(fld(x + 10, 3), 4) + 3, 5),
             },
         ),
         # original extent is smaller than the divident
@@ -1308,6 +1309,17 @@ def test_iter_map_simplify_symbolic_predicate():
         var_dom([(x, (n * n + 1) // 2), (y, 64)]),
         predicate=(z < n * n * 32),
     )
+
+
+def test_iter_map_simplify_cyclic_shift():
+    fused = tvm_tirx.tirx.Var("fused", "int32")
+    index = (fused // 7 + 1) % 6 * 7 + (fused % 7 + 2) % 7
+    simplified = tvm_tirx.sym.iter_map_simplify([index], var_dom([(fused, 42)]))[0]
+    for value in range(42):
+        analyzer = tvm_tirx.sym.Analyzer()
+        analyzer.bind(fused, tvm_tirx.tirx.const(value, "int32"))
+        expected = ((value // 7 + 1) % 6) * 7 + (value % 7 + 2) % 7
+        assert int(analyzer.simplify(simplified)) == expected
 
 
 def test_iter_map_simplify_predicate_fallback_requires_no_padding():
