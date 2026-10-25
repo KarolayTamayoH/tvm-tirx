@@ -592,7 +592,7 @@ void CodeGenCPU::CreateComputeScope(const RegionStmtObj* op) {
     if ((var->ty.as<PtrTypeObj>() || var->ty.as<TensorTypeObj>()) &&
         !alias_var_set_.count(var.get())) {
       // set non alias.
-      fcompute->addParamAttr(idx, llvm::Attribute::NoAlias);
+      fcompute->addParamAttr(static_cast<unsigned>(idx), llvm::Attribute::NoAlias);
       // always not inline compute function to make the code structure clean
       fcompute->addFnAttr(llvm::Attribute::NoInline);
     }
@@ -602,7 +602,7 @@ void CodeGenCPU::CreateComputeScope(const RegionStmtObj* op) {
       unsigned align = f->second.alignment;
       if (align > 1) {
         auto attr = llvm::Attribute::get(*ctx, llvm::Attribute::Alignment, align);
-        fcompute->addParamAttr(idx, attr);
+        fcompute->addParamAttr(static_cast<unsigned>(idx), attr);
       }
     }
   }
@@ -655,7 +655,7 @@ CodeGenLLVM::TypedPointer CodeGenCPU::PackClosureData(const ffi::Array<Var>& vfi
 void CodeGenCPU::UnpackClosureData(TypedPointer cdata, const ffi::Array<Var>& vfields,
                                    std::unordered_map<const VarObj*, llvm::Value*>* vmap) {
   for (size_t i = 0; i < vfields.size(); ++i) {
-    llvm::Type* field_type = cdata.type->getStructElementType(i);
+    llvm::Type* field_type = cdata.type->getStructElementType(static_cast<unsigned>(i));
     llvm::Value* field_addr =
         builder_->CreateInBoundsGEP(cdata.type, cdata.addr, {ConstInt32(0), ConstInt32(i)});
     llvm::Value* load = builder_->CreateLoad(field_type, field_addr, std::string(vfields[i]->name));

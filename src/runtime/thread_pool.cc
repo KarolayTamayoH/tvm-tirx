@@ -316,7 +316,7 @@ class ThreadPool {
       if ((*tsk.launcher->flambda)(0, penv, cdata) == 0) {
         tsk.launcher->SignalJobFinish();
       } else {
-        tsk.launcher->SignalJobError(tsk.task_id);
+        tsk.launcher->SignalJobError(0);
       }
     }
     int res = launcher->WaitForJobs();
@@ -361,7 +361,7 @@ class ThreadPool {
     // Initialize the spin count (from envvar TVM_THREAD_POOL_SPIN_COUNT) on
     // the global first use of the ThreadPool.
     // TODO(tulloch): should we make this configurable via standard APIs?
-    static size_t spin_count = GetSpinCount();
+    static const uint32_t spin_count = GetSpinCount();
     while (queue->Pop(&task, spin_count)) {
       TVM_FFI_ICHECK(task.launcher != nullptr);
       TVMParallelGroupEnv* penv = &(task.launcher->env);
@@ -471,7 +471,7 @@ void ResetThreadPool() { tvm::runtime::ThreadPool::ThreadLocal()->Reset(); }
  */
 TVM_RUNTIME_DLL void Configure(tvm::runtime::threading::ThreadGroup::AffinityMode mode,
                                int nthreads, std::vector<unsigned int> cpus) {
-  tvm::runtime::threading::SetMaxConcurrency(cpus.size());
+  tvm::runtime::threading::SetMaxConcurrency(static_cast<int>(cpus.size()));
 #if !TVM_THREADPOOL_USE_OPENMP
   tvm::runtime::ThreadPool::ThreadLocal()->UpdateWorkerConfiguration(mode, nthreads, cpus);
 #else

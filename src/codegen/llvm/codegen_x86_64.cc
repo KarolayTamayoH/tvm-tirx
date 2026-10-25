@@ -104,15 +104,17 @@ llvm::Value* CodeGenX86_64::CallVectorIntrin(llvm::Intrinsic::ID id, size_t intr
     for (const auto& v : args) {
       if (v->getType()->isVectorTy()) {
         TVM_FFI_ICHECK_EQ(GetVectorNumElements(v), num_elems);
-        split_args.push_back(CreateVecSlice(v, i, intrin_lanes));
+        split_args.push_back(
+            CreateVecSlice(v, static_cast<int>(i), static_cast<int>(intrin_lanes)));
       } else {
         split_args.push_back(v);
       }
     }
-    llvm::Type* type = llvm::FixedVectorType::get(result_ty->getScalarType(), intrin_lanes);
+    llvm::Type* type =
+        llvm::FixedVectorType::get(result_ty->getScalarType(), static_cast<unsigned>(intrin_lanes));
     split_results.push_back(CallVectorIntrin(id, intrin_lanes, type, split_args));
   }
-  return CreateVecSlice(CreateVecConcat(split_results), 0, num_elems);
+  return CreateVecSlice(CreateVecConcat(split_results), 0, static_cast<int>(num_elems));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

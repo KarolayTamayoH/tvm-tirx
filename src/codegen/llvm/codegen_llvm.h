@@ -645,7 +645,7 @@ class CodeGenLLVM : public tvm::ExprFunctor<llvm::Value*(const Expr&)>,
 };
 
 inline int CodeGenLLVM::GetVectorNumElements(llvm::Value* vec) {
-  return llvm::cast<llvm::FixedVectorType>(vec->getType())->getNumElements();
+  return static_cast<int>(llvm::cast<llvm::FixedVectorType>(vec->getType())->getNumElements());
 }
 
 template <typename IterType, typename ConvType>

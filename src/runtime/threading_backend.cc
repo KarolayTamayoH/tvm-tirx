@@ -109,7 +109,7 @@ class ThreadGroup::Impl {
         break;
       case kSpecifyOneCorePerThread:
       case kSpecifyThreadShareAllCore:
-        num_workers_used = cpus.size();
+        num_workers_used = static_cast<int>(cpus.size());
         sorted_order_ = cpus;
         break;
       default:

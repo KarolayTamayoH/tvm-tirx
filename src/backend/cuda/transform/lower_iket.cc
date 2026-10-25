@@ -777,7 +777,7 @@ extern "C" {
         key.kind == DeclarationKind::kRange ? 4 : (key.kind == DeclarationKind::kPush ? 1 : 0);
     PutOfficialU32(&event, 16, event_position);
     PutOfficialU32(&event, 20, range_id);
-    PutOfficialU32(&event, 24, key.name.size());
+    PutOfficialU32(&event, 24, static_cast<uint32_t>(key.name.size()));
     std::copy(key.name.begin(), key.name.end(), event.begin() + 28);
     std::string event_symbol = "__iket_evt_decl_" + OfficialSymbolName(key.name) + "_" +
                                std::to_string(declaration.event_id) + "_attrs";
@@ -791,7 +791,7 @@ extern "C" {
       PutOfficialU32(&range, 12, 0xffffffffU);
       PutOfficialU32(&range, 16, key.kind == DeclarationKind::kRange ? 1 : 2);
       PutOfficialU32(&range, 20, key.kind == DeclarationKind::kRange ? 1 : 0);
-      PutOfficialU32(&range, 32, key.name.size());
+      PutOfficialU32(&range, 32, static_cast<uint32_t>(key.name.size()));
       std::copy(key.name.begin(), key.name.end(), range.begin() + 36);
       std::string range_symbol = "__iket_range_decl_" + OfficialSymbolName(key.name) + "_" +
                                  std::to_string(range_id) + "_attrs";

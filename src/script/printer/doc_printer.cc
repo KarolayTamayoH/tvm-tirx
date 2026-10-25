@@ -345,14 +345,14 @@ std::vector<ByteSpan> MergeAndExemptSpans(const std::vector<ByteSpan>& spans,
   // at most spans.size() spans accumulated in prefix sum
   // use spans.size() + 1 as stamp unit to exempt all positive spans
   // with only one negative span
-  int max_n = spans.size() + 1;
+  int max_n = static_cast<int>(spans.size() + 1);
   for (ByteSpan span : spans_exempted) {
     prefix_stamp.push_back({span.first, -max_n});
     prefix_stamp.push_back({span.second, max_n});
   }
   std::sort(prefix_stamp.begin(), prefix_stamp.end());
   int prefix_sum = 0;
-  int n = prefix_stamp.size();
+  int n = static_cast<int>(prefix_stamp.size());
   for (int i = 0; i < n - 1; ++i) {
     prefix_sum += prefix_stamp[i].second;
     // positive prefix sum leads to spans without exemption
@@ -676,7 +676,7 @@ void DocPrinter::MarkSpan(const ByteSpan& span, const AccessPath& path) {
     pending_string_spans_->emplace_back(span, path);
     return;
   }
-  int n = path_to_underline_.size();
+  int n = static_cast<int>(path_to_underline_.size());
   for (int i = 0; i < n; ++i) {
     AccessPath p = path_to_underline_[i];
     if (path->depth >= current_max_path_depth_[i] && path->IsPrefixOf(p)) {

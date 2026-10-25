@@ -670,7 +670,7 @@ void TVMFFIABIBuilder::BindCompactStrides(const TensorVar& tensor, const Var& st
   ffi::Array<PrimExpr> conds;
   for (size_t i = tensor.shape().size(); i != 0; --i) {
     size_t k = i - 1;
-    PrimExpr svalue = cast(LoadInt64ArrayElem(strides_ptr, k), stype);
+    PrimExpr svalue = cast(LoadInt64ArrayElem(strides_ptr, static_cast<int>(k)), stype);
     conds.push_back(tensor.shape()[k] == 1 || expect_stride == svalue);
     expect_stride = expect_stride * tensor.shape()[k];
   }
@@ -694,7 +694,7 @@ void TVMFFIABIBuilder::BindRegularStrides(const TensorVar& tensor, const Var& st
                                           const ffi::reflection::AccessPath& param_path) {
   PrimExpr stride_from_shape = 1;
   auto strides = MatchShapeStridePattern(tensor.ty()).value().get<1>();
-  for (int k = strides.size() - 1; k >= 0; k--) {
+  for (int k = static_cast<int>(strides.size() - 1); k >= 0; k--) {
     PrimType stride_type = strides[k].ty();
     PrimExpr explicit_stride = cast(LoadInt64ArrayElem(strides_ptr, k), stride_type);
     ffi::reflection::AccessPath strides_k_path =
@@ -773,7 +773,7 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& tensor, const PrimEx
     }
     ffi::reflection::AccessPath shape_k_path = param_path->Attr(ffi::String("shape"))->ArrayItem(k);
     PrimExpr shape = tensor.shape()[k];
-    PrimExpr value = cast(LoadInt64ArrayElem(shape_ptr, k), shape.ty());
+    PrimExpr value = cast(LoadInt64ArrayElem(shape_ptr, static_cast<int>(k)), shape.ty());
     if (shape.as<VarObj>()) {
       BindScalar(shape, value, shape_k_path, true);
     } else {

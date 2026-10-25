@@ -571,7 +571,7 @@ Stmt MakeCudaKernelLaunch(const GlobalVar& symbol, Function* func, ffi::Array<Ex
     auto bytes = analyzer->Simplify(required.value());
     int index = -1;
     for (size_t i = 0; i < fields.size(); ++i) {
-      if (fields[i] == "dynamic_smem_bytes") index = i;
+      if (fields[i] == "dynamic_smem_bytes") index = static_cast<int>(i);
     }
     if (index < 0) {
       TVM_FFI_CHECK(!prim::IsZero(bytes) ||

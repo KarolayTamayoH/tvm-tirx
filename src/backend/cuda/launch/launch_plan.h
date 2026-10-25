@@ -107,7 +107,7 @@ class PackedLaunchPlan {
         values.SetInt(operand.field, operand.constant);
         continue;
       }
-      auto arg = args[kernel_args + operand.index];
+      auto arg = args[static_cast<int>(kernel_args + operand.index)];
       switch (kFields[static_cast<size_t>(operand.field)].kind) {
         case ValueKind::kInteger:
           values.SetInt(operand.field, arg.cast<int64_t>());
