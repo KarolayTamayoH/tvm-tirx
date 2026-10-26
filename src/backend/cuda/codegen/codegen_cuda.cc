@@ -61,6 +61,14 @@ TVM_FFI_INLINE bool IsFloat8(const PrimType& ty) {
                         DLDataTypeCode::kDLFloat8_e5m2fnuz, DLDataTypeCode::kDLFloat8_e8m0fnu);
 }
 
+template <typename Op>
+void CheckBinaryOpSupported(const Op* op) {
+  if (IsFloat8(op->a.ty())) {
+    TVM_FFI_THROW(RuntimeError) << "CUDA codegen does not support " << Op::_type_key << " for "
+                                << op->a.ty()->dtype;
+  }
+}
+
 TVM_FFI_INLINE bool IsFloat6(const PrimType& ty) {
   return ty.MatchesCode(DLDataTypeCode::kDLFloat6_e2m3fn, DLDataTypeCode::kDLFloat6_e3m2fn);
 }
@@ -806,11 +814,68 @@ void CodeGenCUDA::PrintMinMaxNanPreservingImpl(const T* op, const char* opstr,
   EndScope(ssa_scope);
 }
 
+void CodeGenCUDA::Dispatch_(const prim::AddObj* op, std::ostream& os) {
+  CheckBinaryOpSupported(op);
+  CodeGenC::Dispatch_(op, os);
+}
+
+void CodeGenCUDA::Dispatch_(const prim::SubObj* op, std::ostream& os) {
+  CheckBinaryOpSupported(op);
+  CodeGenC::Dispatch_(op, os);
+}
+
+void CodeGenCUDA::Dispatch_(const prim::MulObj* op, std::ostream& os) {
+  CheckBinaryOpSupported(op);
+  CodeGenC::Dispatch_(op, os);
+}
+
+void CodeGenCUDA::Dispatch_(const prim::DivObj* op, std::ostream& os) {
+  CheckBinaryOpSupported(op);
+  CodeGenC::Dispatch_(op, os);
+}
+
+void CodeGenCUDA::Dispatch_(const prim::ModObj* op, std::ostream& os) {
+  CheckBinaryOpSupported(op);
+  CodeGenC::Dispatch_(op, os);
+}
+
+void CodeGenCUDA::Dispatch_(const prim::EQObj* op, std::ostream& os) {
+  CheckBinaryOpSupported(op);
+  CodeGenC::Dispatch_(op, os);
+}
+
+void CodeGenCUDA::Dispatch_(const prim::NEObj* op, std::ostream& os) {
+  CheckBinaryOpSupported(op);
+  CodeGenC::Dispatch_(op, os);
+}
+
+void CodeGenCUDA::Dispatch_(const prim::LTObj* op, std::ostream& os) {
+  CheckBinaryOpSupported(op);
+  CodeGenC::Dispatch_(op, os);
+}
+
+void CodeGenCUDA::Dispatch_(const prim::LEObj* op, std::ostream& os) {
+  CheckBinaryOpSupported(op);
+  CodeGenC::Dispatch_(op, os);
+}
+
+void CodeGenCUDA::Dispatch_(const prim::GTObj* op, std::ostream& os) {
+  CheckBinaryOpSupported(op);
+  CodeGenC::Dispatch_(op, os);
+}
+
+void CodeGenCUDA::Dispatch_(const prim::GEObj* op, std::ostream& os) {
+  CheckBinaryOpSupported(op);
+  CodeGenC::Dispatch_(op, os);
+}
+
 void CodeGenCUDA::Dispatch_(const prim::MinObj* op, std::ostream& os) {  // NOLINT(*)
+  CheckBinaryOpSupported(op);
   this->PrintMinMaxNanPreservingImpl(op, "min", os);
 }
 
 void CodeGenCUDA::Dispatch_(const prim::MaxObj* op, std::ostream& os) {  // NOLINT(*)
+  CheckBinaryOpSupported(op);
   this->PrintMinMaxNanPreservingImpl(op, "max", os);
 }
 
