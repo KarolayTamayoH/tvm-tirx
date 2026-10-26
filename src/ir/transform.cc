@@ -316,8 +316,8 @@ std::optional<std::string> RenderScriptWithUnderline(const ffi::ObjectRef& node,
 }
 }  // namespace
 
-ffi::Error EnrichPassErrorWithContext(const ffi::Error& err, const IRModule& mod,
-                                      ffi::String pass_name, ffi::Optional<GlobalVar> func) {
+ffi::Error EnrichErrorWithContext(const ffi::Error& err, const IRModule& mod, ffi::String context,
+                                  ffi::Optional<GlobalVar> func) {
   namespace ffi = tvm::ffi;
   // No visit-context payload => nothing to resolve; return the error untouched.
   // (The enriched error below drops the payload, so an outer catch that
@@ -337,8 +337,13 @@ ffi::Error EnrichPassErrorWithContext(const ffi::Error& err, const IRModule& mod
   }
 
   auto try_render = [&](const ffi::ObjectRef& search_root) -> std::optional<std::string> {
-    auto paths = ffi::VisitErrorContext::FindAccessPaths(search_root, visit_ctx.value(),
-                                                         /*allow_prefix_match=*/true);
+    // Prefer the precise throw site. Prefix matches may include unrelated
+    // leaves of an enclosing statement before the full match in traversal order.
+    auto paths = ffi::VisitErrorContext::FindAccessPaths(search_root, visit_ctx.value());
+    if (paths.empty()) {
+      paths = ffi::VisitErrorContext::FindAccessPaths(search_root, visit_ctx.value(),
+                                                      /*allow_prefix_match=*/true);
+    }
     if (paths.empty()) return std::nullopt;
     return RenderScriptWithUnderline(search_root, paths[0]);
   };
@@ -350,14 +355,17 @@ ffi::Error EnrichPassErrorWithContext(const ffi::Error& err, const IRModule& mod
   }
   if (!snippet) return err;
 
-  // Append the pass name + underlined TVMScript location. Preserve kind,
+  // Append the operation context + underlined TVMScript location. Preserve kind,
   // original message, and backtrace; drop the VisitErrorContext payload so an
   // outer catch does not re-enrich.
   std::ostringstream suffix;
-  suffix << "\n\nError in pass: " << pass_name << "\n"
-         << kLocationMarker << "\n"
-         << snippet.value();
+  suffix << "\n\n" << context << "\n" << kLocationMarker << "\n" << snippet.value();
   return ffi::Error(err.kind(), err.message() + suffix.str(), err.backtrace());
+}
+
+ffi::Error EnrichPassErrorWithContext(const ffi::Error& err, const IRModule& mod,
+                                      ffi::String pass_name, ffi::Optional<GlobalVar> func) {
+  return EnrichErrorWithContext(err, mod, "Error in pass: " + pass_name, func);
 }
 
 IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
