@@ -49,6 +49,7 @@ TVM_FFI_INLINE bool IsVectorExpr(const ExprObj* expr) {
   PrimType ty = expr->ty.as_or_throw<PrimType>();
   return ty.IsScalableVector() || ty.IsFixedLengthVector();
 }
+
 }  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() { RewriteSimplifierStatsObj::RegisterReflection(); }
@@ -164,22 +165,27 @@ CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, const PrimE
            output == CompareResult::kGT;
   };
 
-  output = CompareResult(output & TryCompareUsingConstIntBounds(x, y));
+  output = output & TryCompare(x - y, 0);
   if (is_finished()) return output;
 
-  output = CompareResult(output & TryCompareUsingKnownInequalities(x, y));
+  output = output & analyzer_->rewrite_simplify.TryCompare(x, y);
 
   return output;
 }
 
-CompareResult RewriteSimplifier::Impl::TryCompareUsingConstIntBounds(const PrimExpr& x,
-                                                                     const PrimExpr y) {
-  return TryCompare(x - y, 0);
-}
-
-CompareResult RewriteSimplifier::Impl::TryCompareUsingKnownInequalities(const PrimExpr& x,
-                                                                        const PrimExpr& y) {
-  return analyzer_->known_comparisons.TryCompare(x, y);
+CompareResult RewriteSimplifier::Impl::TryCompareKnown(const PrimExpr& lhs,
+                                                       const PrimExpr& rhs) const {
+  const auto& facts = detail::TempConstraintScope::Query(analyzer_);
+  if (facts.empty()) return known_comparisons_.TryCompare(lhs, rhs);
+  // Temporary bindings, predicates and expression keys belong to query scratch.
+  KnownComparisons temporary = known_comparisons_;
+  for (const Constraint& fact : facts) {
+    if (const auto* binding = fact.as<BindingConstraintObj>())
+      temporary.IngestBinding(binding->var, binding->value);
+    else if (const auto* predicate = fact.as<PredicateConstraintObj>())
+      temporary.IngestPredicate(predicate->condition);
+  }
+  return temporary.TryCompare(lhs, rhs);
 }
 
 // try to prove x equals val
@@ -2387,12 +2393,24 @@ PrimExpr RewriteSimplifier::operator()(const PrimExpr& expr) {
   return res;
 }
 
-void RewriteSimplifier::IngestBinding(const Var& var, const PrimExpr& info) {
-  impl_->SetBinding(var, info, true);
+CompareResult RewriteSimplifier::TryCompare(const PrimExpr& lhs, const PrimExpr& rhs) {
+  detail::TempConstraintScope query(impl_->owner());
+  return impl_->TryCompareKnown(lhs, rhs);
+}
+
+void RewriteSimplifier::IngestBinding(const Var& var, const PrimExpr& value,
+                                      const PrimExpr& original) {
+  impl_->SetBinding(var, value, true);
+  impl_->known_comparisons_.IngestBinding(var, original);
+}
+
+void RewriteSimplifier::IngestBinding(const Var& var, const Range& range) {
+  impl_->known_comparisons_.IngestBinding(var, range);
 }
 
 void RewriteSimplifier::IngestPredicate(const PrimExpr& constraint) {
   impl_->AddPredicate(constraint, false);
+  impl_->known_comparisons_.IngestPredicate(constraint);
 }
 
 ffi::ObjectRef RewriteSimplifier::GetStatsCounters() const { return impl_->GetStatsCounters(); }

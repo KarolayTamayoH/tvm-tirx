@@ -55,7 +55,6 @@ AnalyzerObj::AnalyzerObj()
       rewrite_simplify(this),
       canonical_simplify(this),
       int_set(this),
-      known_comparisons(this),
       z3_prover(this) {}
 
 ConstraintContext AnalyzerObj::GetConstraintContext() const {
@@ -122,7 +121,6 @@ void AnalyzerObj::SyncConstraintContext(const ConstraintContext& context) {
     rewrite_simplify.Reset();
     canonical_simplify.Reset();
     int_set.Reset();
-    known_comparisons.Reset();
     z3_prover.Reset();
     next->ForEach([&](const Constraint& fact) { IngestConstraint(fact); });
   }
@@ -136,10 +134,9 @@ void AnalyzerObj::IngestBinding(const Var& var, const PrimExpr& expr) {
   value = rewrite_simplify(value);
   const_int_bound.IngestBinding(var, value);
   modular_set.IngestBinding(var, value);
-  rewrite_simplify.IngestBinding(var, value);
+  rewrite_simplify.IngestBinding(var, value, expr);
   canonical_simplify.IngestBinding(var, value);
   int_set.IngestBinding(var, value);
-  known_comparisons.IngestBinding(var, expr);
   z3_prover.IngestBinding(var, expr);
 }
 
@@ -149,7 +146,7 @@ void AnalyzerObj::IngestBinding(const Var& var, const Range& range) {
   } else {
     const_int_bound.IngestBinding(var, range);
     int_set.IngestBinding(var, range);
-    known_comparisons.IngestBinding(var, range);
+    rewrite_simplify.IngestBinding(var, range);
     z3_prover.IngestBinding(var, range);
   }
 }
@@ -190,7 +187,6 @@ void AnalyzerObj::IngestConstraint(const Constraint& fact) {
       modular_set.IngestPredicate(condition);
       rewrite_simplify.IngestPredicate(condition);
       int_set.IngestPredicate(condition);
-      known_comparisons.IngestPredicate(condition);
       z3_prover.IngestPredicate(condition);
     }
   }
@@ -354,7 +350,6 @@ Analyzer AnalyzerObj::Clone() const {
   cloned->rewrite_simplify.CopyFrom(this->rewrite_simplify);
   cloned->canonical_simplify.CopyFrom(this->canonical_simplify);
   cloned->int_set.CopyFrom(this->int_set);
-  cloned->known_comparisons.CopyFrom(this->known_comparisons);
   cloned->z3_prover.CopyFrom(this->z3_prover);
   cloned->last_snapshot_ = last_snapshot_;
   return cloned;
@@ -416,7 +411,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("sym.AnalyzerCanProveEqual", &AnalyzerObj::CanProveEqual)
       .def("sym.AnalyzerTryCompare",
            [](Analyzer analyzer, const PrimExpr& lhs, const PrimExpr& rhs) {
-             return static_cast<int64_t>(analyzer->known_comparisons.TryCompare(lhs, rhs));
+             return static_cast<int64_t>(analyzer->rewrite_simplify.TryCompare(lhs, rhs));
            })
       .def("sym.AnalyzerIsZ3Enabled",
            [](Analyzer analyzer) { return analyzer->z3_prover.IsEnabled(); })
