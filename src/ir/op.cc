@@ -25,10 +25,18 @@
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
 
+#include <optional>
+
 namespace tvm {
+
+void Op::ExposeScript(const ffi::String& op_name) {
+  static std::optional<ffi::Function> cached = ffi::Function::GetGlobal("script.expose_script_op");
+  if (cached) (*cached)(op_name);
+}
 
 // Owns canonical Ops and mutable attribute columns for the lifetime of the process.
 class OpRegistry {
