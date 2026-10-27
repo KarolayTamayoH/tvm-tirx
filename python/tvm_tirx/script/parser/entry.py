@@ -34,7 +34,8 @@ from tvm_tirx.script import ir_builder as builder_ir
 from tvm_tirx.script.ir_builder import base
 from tvm_tirx.script.ir_builder.base import LocationEntry
 
-from . import _NAMESPACES, _initialize, jit_support, protocol_registry
+from . import _NAMESPACES as _NAMESPACES
+from . import _initialize, jit_support, protocol_registry
 from . import register_namespace as register_namespace
 from .inspect_source import (
     _AnnotationScope,

@@ -18,6 +18,7 @@
 
 from typing import Any
 
+from tvm_tirx.ir._expose_api import _init_exposed_op_api
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Call, Expr
@@ -1364,3 +1365,6 @@ def pow(x, y, loc: Location = UNKNOWN_LOC):
         The result.
     """
     return _ffi_api._OpPow(x, y, loc)  # type: ignore
+
+
+_init_exposed_op_api("prim", __name__)

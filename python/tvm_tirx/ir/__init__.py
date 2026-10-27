@@ -68,6 +68,7 @@ from . import prim
 from .function import BaseFunc, CallingConv
 from .global_info import GlobalInfo
 from .module import IRModule
+from . import op as op, type as type
 from .op import Op, OpAttrMap, register_op_attr
 from .stmt import (
     Stmt,
@@ -89,3 +90,8 @@ from .stmt import (
 
 # Load passes after the common IR classes used by transformations are registered.
 from . import transform
+
+# Connect exposure after the shared IR wrappers are ready.
+from ._expose_api import _install_exposure_callbacks
+
+_install_exposure_callbacks()

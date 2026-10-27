@@ -30,6 +30,7 @@ from tvm_tirx import ir
 from tvm_tirx import ir as _ir
 from tvm_tirx import tirx as tir
 from tvm_tirx.ir import FloatImm, IntImm, Range, TensorLoad, TensorRegion, Type
+from tvm_tirx.ir._expose_api import _init_exposed_type_api
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 from tvm_tirx.ir.type import _normalize_type
 from tvm_tirx.runtime import MemoryScope
@@ -1312,3 +1313,7 @@ __all__ = [
     "uint64x64",
     "void",
 ]
+
+
+_init_exposed_type_api("ir", __name__)
+_init_exposed_type_api("tirx", __name__)

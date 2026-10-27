@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from tvm_tirx import ir as _ir
 from tvm_tirx.backend.cuda import op as _cuda_op
+from tvm_tirx.ir._expose_api import _init_exposed_op_api, _make_op_api
 from tvm_tirx.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_call
 
 from . import layout as layout
@@ -48,7 +49,7 @@ class _CpAsyncRaw:
         # raw op below.
         self.legacy = _auto_emit_void_call(_cuda_op.ptx_cp_async_legacy)
         op = _ir.Op.get("tirx.s_tir.cp_async_raw")
-        self._construct = _auto_emit_void_call(_ir.op._make_op_api(op, __name__))
+        self._construct = _auto_emit_void_call(_make_op_api(op, __name__))
 
     def __call__(self, *args, **kwds):
         return self._construct(*args, **kwds)
@@ -101,10 +102,10 @@ class CudaTcgen05Namespace:
             _cuda_op.tcgen05_encode_matrix_descriptor
         )
         self.encode_instr_descriptor = _auto_emit_void_call(
-            _ir.op._make_op_api(_ir.Op.get("tirx.cuda.tcgen05_encode_instr_descriptor"), __name__)
+            _make_op_api(_ir.Op.get("tirx.cuda.tcgen05_encode_instr_descriptor"), __name__)
         )
         self.encode_instr_descriptor_block_scaled = _auto_emit_void_call(
-            _ir.op._make_op_api(
+            _make_op_api(
                 _ir.Op.get("tirx.cuda.tcgen05_encode_instr_descriptor_block_scaled"), __name__
             )
         )
@@ -142,8 +143,6 @@ timer_init = _auto_emit_void_call(_cuda_op.timer_init)
 timer_start = _auto_emit_void_call(_cuda_op.timer_start)
 timer_end = _auto_emit_void_call(_cuda_op.timer_end)
 timer_finalize = _auto_emit_void_call(_cuda_op.timer_finalize)
-mma_store = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("tirx.cuda.mma_store"), __name__))
-mma_fill = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("tirx.cuda.mma_fill"), __name__))
 bmma_sync = _auto_emit_void_call(_cuda_op.bmma_sync)
 atomic_add = _auto_emit_void_call(_cuda_op.atomic_add)
 atomic_cas = _auto_emit_void_call(_cuda_op.atomic_cas)
@@ -151,11 +150,6 @@ cta_reduce = _auto_emit_void_call(_cuda_op.cta_reduce)
 mov_sreg = _auto_emit_void_call(_cuda_op.mov_sreg)
 wait_until = _auto_emit_void_call(_cuda_op.wait_until)
 warp_reduce = _auto_emit_void_call(_cuda_op.warp_reduce)
-__shfl_sync = _auto_emit_void_call(_cuda_op.__shfl_sync)
-__shfl_up_sync = _auto_emit_void_call(_cuda_op.__shfl_up_sync)
-__shfl_down_sync = _auto_emit_void_call(_cuda_op.__shfl_down_sync)
-__shfl_xor_sync = _auto_emit_void_call(_cuda_op.__shfl_xor_sync)
-__activemask = _auto_emit_void_call(_cuda_op.__activemask)
 
 
 tile = _make_tensor_namespace()
@@ -248,9 +242,4 @@ class PTXNamespace(_PTXNamespace):
         return None if chain is None else _ScriptInstrChain(chain._cands)
 
 
-# Preserve completed definition-site exports alongside the explicit builders.
-import sys as _sys  # noqa: E402
-
-from tvm_tirx.tirx.script.ir_builder.op import register_script_namespace as _register_namespace  # noqa: E402
-
-_register_namespace("cuda", _sys.modules[__name__])
+_init_exposed_op_api("tirx.cuda", __name__, wrapper=_auto_emit_void_call)

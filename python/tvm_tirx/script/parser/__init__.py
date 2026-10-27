@@ -40,6 +40,8 @@ import importlib
 from collections.abc import Callable
 from typing import Any
 
+# Explicit parser defaults, mapping source names to borrowed namespace objects.
+# Exposure selects APIs for their declared destinations; it never adds defaults here.
 _NAMESPACES: dict[str, object] = {}
 _NAMESPACE_INITIALIZERS: list[Callable[[], None]] = []
 _NAMESPACE_ALIASES: set[str] = {"ir"}
@@ -76,8 +78,11 @@ def register_namespace(alias: str, namespace: object) -> None:
 
     Notes
     -----
-    Each parse borrows these namespaces. Replacing an alias affects future parses
-    only; registration enters no builder frame and inspects no namespace members.
+    Each parse borrows these explicitly registered defaults. Replacing an alias
+    affects future parses only; registration enters no builder frame and inspects
+    no namespace members. Imported extension objects also work through Python
+    scope without registration. Text parsing can receive them through imports or
+    extra_vars; exposing an op or type does not register a parser default.
     """
     _NAMESPACES[alias] = namespace
 

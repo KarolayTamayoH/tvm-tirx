@@ -118,6 +118,7 @@ def resolve_namespace_key(
 
 def resolve_namespace_value(node: ast.AST | None, environment: Mapping[str, object]) -> object:
     """Read configuration from an explicitly registered namespace, never a receiver."""
+
     from . import _NAMESPACES
 
     key = resolve_namespace_key(node, environment)

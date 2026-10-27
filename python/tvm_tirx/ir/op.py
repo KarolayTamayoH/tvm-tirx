@@ -21,9 +21,8 @@ from collections.abc import Sequence
 
 import tvm_ffi
 
-from tvm_tirx.ir.location import UNKNOWN_LOC, Location
-
 from . import _ffi_api
+from ._expose_api import _init_exposed_op_api
 from .expr import Expr
 
 
@@ -167,13 +166,14 @@ class Op(Expr):
         type_tail = [] if var_ty_args is None else list(parse_entry(var_ty_args, "var_ty_args"))
         self._set_signature(arg_names, arg_docs, ty_arg_names, ty_arg_docs, value_tail, type_tail)
 
-    def expose_script(self) -> None:
-        """Expose the completed operator definition in TVMScript.
+    def expose(self) -> None:
+        """Expose the completed operator definition to registered API destinations.
 
-        Call after setting the signature and attributes. Early requests wait
-        until the script builder is initialized; explicit builders take precedence.
+        Call after setting the signature and attributes. Destinations initialized
+        later replay the request; explicit Python APIs
+        take precedence. Registration and attribute updates alone do not expose an Op.
         """
-        tvm_ffi.get_global_func("script.expose_script_op")(self.name)
+        tvm_ffi.get_global_func("ir.expose_op")(self.name)
 
 
 class OpAttrMap:
@@ -258,61 +258,4 @@ def register_op_attr(op_name, attr_key, value=None, override=False):
     return _register(value) if value is not None else _register
 
 
-def _make_op_api(op, module_name):
-    """Build a callable whose operands and result are governed by its Op."""
-    from .attrs import make_node  # pylint: disable=import-outside-toplevel
-    from .expr import Call  # pylint: disable=import-outside-toplevel
-
-    def call(
-        *args,
-        attrs=None,
-        ty_args=None,
-        loc: Location = UNKNOWN_LOC,
-        ty=None,
-        **kwargs,
-    ):
-        # Bind named operands using the registered signature, without inventing
-        # defaults or interpreting arbitrary Python wrapper signatures.
-        is_region = op.get_attr("FRegionGetBodyParams") is not None
-        body_params = kwargs.pop("body_params", None) if is_region else None
-        operands = list(args)
-        for index, info in enumerate(op.args_info):
-            if index < len(args):
-                if info.name in kwargs:
-                    raise TypeError(f"{op.name}: multiple values for {info.name!r}")
-            elif info.name in kwargs:
-                operands.append(kwargs.pop(info.name))
-            else:
-                raise TypeError(f"{op.name}: missing operand {info.name!r}")
-        if kwargs or (attrs is None and op.attrs_type_key):
-            if not op.attrs_type_key:
-                raise TypeError(f"{op.name}: unexpected keyword operands {tuple(kwargs)}")
-            if attrs is not None:
-                raise TypeError(f"{op.name}: cannot mix attrs with attribute keywords")
-            attrs = make_node(op.attrs_type_key, **kwargs)
-        if is_region:
-            from tvm_tirx.script.ir_builder.stmt import region
-
-            if (
-                ty is not None
-                or ty_args is not None
-                or not isinstance(loc, Location)
-                or not loc.same_as(UNKNOWN_LOC)
-            ):
-                raise TypeError(
-                    f"{op.name}: region builders do not accept ty, ty_args or an explicit loc"
-                )
-            return region(op, operands, body_params=body_params, attrs=attrs)
-        return Call(
-            op,
-            operands,
-            attrs=attrs,
-            ty_args=ty_args,
-            loc=loc,
-            ty=ty,
-        )
-
-    call.__name__ = op.name.rsplit(".", 1)[-1]
-    call.__module__ = module_name
-    call.__doc__ = op.doc or f"Construct a call to {op.name}."
-    return call
+_init_exposed_op_api("ir", __name__)
