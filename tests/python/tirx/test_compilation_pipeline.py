@@ -113,5 +113,15 @@ def test_verify_memory_rejects_host_store_to_gpu_tensor_view():
         _prepare_for_cuda(kernel)
 
 
+def test_verify_memory_accepts_host_address_of_gpu_tensor_views():
+    @T.function
+    def kernel(A: T.Tensor((4, 4), "float32"), index: T.int32):
+        A_decl = T.decl_tensor(A.data, ty_args=[T.Tensor((16,), "float32")])
+        A_view = A_decl.view(16)
+        T.call_extern("consume_pointer", T.address_of(A_view[index]), ty="void")
+
+    _prepare_for_cuda(kernel)
+
+
 if __name__ == "__main__":
     tvm_tirx.testing.main()
